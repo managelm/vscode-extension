@@ -156,12 +156,12 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         hostname: a.hostname, display_name: a.display_name, status: a.status,
         ip_address: a.ip_address, os: a.os_info, health: a.health_metrics,
       }));
-      return JSON.stringify({ agents: summary, total: agents.length }, null, 2);
+      return JSON.stringify({ agents: summary, total: agents.length });
     }
     case 'agentInfo': {
       const agent = await api.findAgentByHostname(input.hostname as string);
       if (!agent) { return JSON.stringify({ error: `No agent found matching "${input.hostname}"` }); }
-      return JSON.stringify({ agent }, null, 2);
+      return JSON.stringify({ agent });
     }
     case 'runTask': {
       const agent = await api.findAgentByHostname(input.target as string);
@@ -171,17 +171,17 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       return JSON.stringify({
         task_id: result.task.id, status: result.task.status, summary: result.task.summary,
         error: result.task.error_message, mutating: result.task.mutating, result: result.result,
-      }, null, 2);
+      });
     }
     case 'getTaskStatus': {
       const task = await api.getTask(input.taskId as string);
-      return JSON.stringify({ task }, null, 2);
+      return JSON.stringify({ task });
     }
     case 'getTaskHistory': {
       const agent = await api.findAgentByHostname(input.hostname as string);
       if (!agent) { return JSON.stringify({ error: `No agent found matching "${input.hostname}"` }); }
       const tasks = await api.getTaskHistory(agent.id, (input.limit as number) || 20);
-      return JSON.stringify({ hostname: agent.hostname, tasks, total: tasks.length }, null, 2);
+      return JSON.stringify({ hostname: agent.hostname, tasks, total: tasks.length });
     }
     case 'approveAgent': {
       const agent = await api.findAgentByHostname(input.hostname as string);
@@ -192,27 +192,27 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     }
     case 'listSkills': {
       const skills = await api.listSkills();
-      return JSON.stringify({ skills: skills.map(s => ({ name: s.name, slug: s.slug, description: s.description })) }, null, 2);
+      return JSON.stringify({ skills: skills.map(s => ({ name: s.name, slug: s.slug, description: s.description })) });
     }
     case 'agentSkills': {
       const agent = await api.findAgentByHostname(input.hostname as string);
       if (!agent) { return JSON.stringify({ error: `No agent found matching "${input.hostname}"` }); }
       const skills = await api.getAgentSkills(agent.id);
-      return JSON.stringify({ hostname: agent.hostname, skills: skills.map(s => ({ name: s.name, slug: s.slug })) }, null, 2);
+      return JSON.stringify({ hostname: agent.hostname, skills: skills.map(s => ({ name: s.name, slug: s.slug })) });
     }
     case 'getSecurity': {
       const agent = await api.findAgentByHostname(input.hostname as string);
       if (!agent) { return JSON.stringify({ error: `No agent found matching "${input.hostname}"` }); }
       const result = await api.getSecurity(agent.id);
       if (!result) { return JSON.stringify({ message: 'No security audit run yet. Use runSecurityAudit first.' }); }
-      return JSON.stringify({ hostname: agent.hostname, status: result.status, findings: result.findings }, null, 2);
+      return JSON.stringify({ hostname: agent.hostname, status: result.status, findings: result.findings });
     }
     case 'getInventory': {
       const agent = await api.findAgentByHostname(input.hostname as string);
       if (!agent) { return JSON.stringify({ error: `No agent found matching "${input.hostname}"` }); }
       const result = await api.getInventory(agent.id);
       if (!result) { return JSON.stringify({ message: 'No inventory scan run yet. Use runInventoryScan first.' }); }
-      return JSON.stringify({ hostname: agent.hostname, status: result.status, items: result.items }, null, 2);
+      return JSON.stringify({ hostname: agent.hostname, status: result.status, items: result.items });
     }
     case 'runSecurityAudit': {
       const agent = await api.findAgentByHostname(input.hostname as string);
@@ -228,7 +228,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     }
     case 'accountInfo': {
       const info = await api.getAccountInfo();
-      return JSON.stringify(info, null, 2);
+      return JSON.stringify(info);
     }
     default:
       return JSON.stringify({ error: `Unknown tool: ${name}` });

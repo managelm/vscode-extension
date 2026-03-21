@@ -16,17 +16,15 @@
 
 ## Extension structure
 
-- `package.json` — VS Code extension manifest (chat participant, LM tools, settings).
-- `src/extension.ts` — Activation entry point, registers participant and tools.
-- `src/participant.ts` — `@managelm` Copilot Chat participant with agentic tool loop.
-- `src/tools.ts` — Language Model tool implementations (list agents, run tasks, etc.).
+- `package.json` — VS Code extension manifest (chat participant, settings).
+- `src/extension.ts` — Activation entry point, registers participant.
+- `src/participant.ts` — `@managelm` Copilot Chat participant with agentic tool loop and inline tool definitions.
 - `src/api.ts` — ManageLM portal REST API client.
 - `icon.png` — Extension icon.
 
 ## Coding practices
 
 - Keep the code as clean as possible.
-- The extension uses the VS Code Chat and Language Model APIs.
+- The participant defines tool schemas inline and calls the API directly (not via vscode.lm.tools).
 - All API calls go through src/api.ts with proper error handling.
-- Action tools (runTask, approve, audit, scan) use prepareInvocation for user confirmation.
 - Never store API keys in code; they come from VS Code settings.

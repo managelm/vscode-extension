@@ -53,23 +53,15 @@ Open Copilot Chat and type `@managelm` followed by your request:
 @managelm approve the new server that just enrolled
 ```
 
-The extension provides 13 tools to Copilot Chat:
+The `@managelm` participant can:
 
-| Tool | Description |
-|------|-------------|
-| **List Servers** | List all agents with status, health, and OS info |
-| **Server Details** | Detailed info for a single server |
-| **Run Task** | Execute a skill-based task on a server |
-| **Task Status** | Check status of a running or completed task |
-| **Task History** | Recent tasks for a server |
-| **Approve Agent** | Approve a pending agent enrollment |
-| **List Skills** | Available skills in your account |
-| **Server Skills** | Skills assigned to a specific server |
-| **Security Findings** | View security audit results |
-| **Server Inventory** | View installed packages, services, containers |
-| **Run Security Audit** | Start a security audit |
-| **Run Inventory Scan** | Start an inventory scan |
-| **Account Info** | Account plan, members, and usage |
+- **List and inspect servers** — status, health metrics, OS info, IP addresses
+- **Run tasks** — execute any skill (packages, services, users, security, files, etc.)
+- **Check task status and history** — track running and completed tasks
+- **Security audits** — start audits and view findings
+- **Inventory scans** — discover packages, services, and containers
+- **Approve agents** — approve new server enrollments
+- **Account info** — view plan, members, and usage
 
 ## How It Works
 
