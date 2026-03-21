@@ -6,6 +6,9 @@
  * loop: it sends the user's message to the LM together with ManageLM
  * tool definitions, executes any tool calls the LM makes, feeds results
  * back, and repeats until the LM produces a final text answer.
+ *
+ * Includes a fallback that parses tool calls from text output when the
+ * model doesn't use structured tool calling.
  */
 
 import * as vscode from 'vscode';
@@ -47,6 +50,46 @@ Be concise and helpful. Format output in readable markdown.`;
 /** Maximum tool-calling iterations to prevent infinite loops. */
 const MAX_ITERATIONS = 10;
 
+/** Known tool names for fallback text parsing. */
+const TOOL_NAMES = new Set([
+  'managelm_listAgents', 'managelm_agentInfo', 'managelm_runTask',
+  'managelm_getTaskStatus', 'managelm_getTaskHistory', 'managelm_approveAgent',
+  'managelm_listSkills', 'managelm_agentSkills', 'managelm_getSecurity',
+  'managelm_getInventory', 'managelm_runSecurityAudit', 'managelm_runInventoryScan',
+  'managelm_accountInfo',
+]);
+
+/**
+ * Try to extract tool calls from text when the model outputs them as JSON
+ * instead of using structured tool calling. Matches patterns like:
+ *   {"tool":"managelm_runTask","arguments":{...}}
+ */
+function parseToolCallsFromText(text: string): { name: string; input: unknown }[] {
+  const calls: { name: string; input: unknown }[] = [];
+  // Match JSON objects that look like tool calls
+  const regex = /\{[^{}]*"tool"\s*:\s*"(managelm_\w+)"[^{}]*"arguments"\s*:\s*(\{[^}]*\})[^{}]*\}/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    const toolName = match[1];
+    if (TOOL_NAMES.has(toolName)) {
+      try {
+        const args = JSON.parse(match[2]);
+        calls.push({ name: toolName, input: args });
+      } catch {
+        // Invalid JSON, skip
+      }
+    }
+  }
+  return calls;
+}
+
+/**
+ * Strip JSON tool call blocks from text so they aren't shown to the user.
+ */
+function stripToolCallJson(text: string): string {
+  return text.replace(/\{[^{}]*"tool"\s*:\s*"managelm_\w+"[^{}]*"arguments"\s*:\s*\{[^}]*\}[^{}]*\}/g, '').trim();
+}
+
 /**
  * Register the @managelm chat participant.
  */
@@ -72,6 +115,11 @@ async function handler(
       description: t.description,
       inputSchema: t.inputSchema as Record<string, unknown> | undefined,
     }));
+
+  if (chatTools.length === 0) {
+    stream.markdown('**Error:** ManageLM tools not loaded. Try reloading VS Code.');
+    return {};
+  }
 
   // Build conversation messages
   const messages: vscode.LanguageModelChatMessage[] = [
@@ -105,26 +153,78 @@ async function handler(
         token,
       );
 
-      // Collect all streamed parts
+      // Collect all streamed parts — buffer text instead of streaming immediately
       const parts: (vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart)[] = [];
+      let fullText = '';
 
       for await (const part of response.stream) {
         if (part instanceof vscode.LanguageModelTextPart) {
-          stream.markdown(part.value);
+          fullText += part.value;
           parts.push(part);
         } else if (part instanceof vscode.LanguageModelToolCallPart) {
           parts.push(part);
         }
       }
 
-      // Extract tool calls from the response
-      const toolCalls = parts.filter(
+      // Extract structured tool calls from the response
+      let toolCalls = parts.filter(
         (p): p is vscode.LanguageModelToolCallPart =>
           p instanceof vscode.LanguageModelToolCallPart,
       );
 
-      // No tool calls means the LM produced a final answer — we're done
+      // Fallback: if no structured tool calls, parse them from text output
+      const textToolCalls = toolCalls.length === 0 ? parseToolCallsFromText(fullText) : [];
+
+      if (textToolCalls.length > 0) {
+        // Strip tool call JSON from displayed text
+        const cleanText = stripToolCallJson(fullText);
+        if (cleanText) {
+          stream.markdown(cleanText + '\n\n');
+        }
+
+        // Execute parsed tool calls
+        for (const call of textToolCalls) {
+          stream.markdown(`*Running ${call.name.replace('managelm_', '')}...*\n\n`);
+          try {
+            const result = await vscode.lm.invokeTool(
+              call.name,
+              {
+                input: call.input as object,
+                toolInvocationToken: request.toolInvocationToken,
+              },
+              token,
+            );
+            const resultContent = result.content as (vscode.LanguageModelTextPart | vscode.LanguageModelPromptTsxPart)[];
+            const resultText = resultContent
+              .filter((c): c is vscode.LanguageModelTextPart => c instanceof vscode.LanguageModelTextPart)
+              .map(c => c.value)
+              .join('');
+
+            // Feed tool result back to LM for formatting
+            messages.push(vscode.LanguageModelChatMessage.Assistant(fullText));
+            messages.push(vscode.LanguageModelChatMessage.User(
+              `Tool ${call.name} returned:\n${resultText}\n\nPresent these results clearly in markdown.`,
+            ));
+          } catch (err: unknown) {
+            const errMsg = err instanceof Error ? err.message : 'Tool call failed';
+            stream.markdown(`**Error:** ${errMsg}\n\n`);
+          }
+        }
+
+        // Get LM to format the results
+        const formatResponse = await request.model.sendRequest(messages, {}, token);
+        for await (const part of formatResponse.stream) {
+          if (part instanceof vscode.LanguageModelTextPart) {
+            stream.markdown(part.value);
+          }
+        }
+        break;
+      }
+
+      // Normal path: stream text and handle structured tool calls
       if (toolCalls.length === 0) {
+        // No tool calls at all — stream the text as final answer
+        stream.markdown(fullText);
         break;
       }
 
