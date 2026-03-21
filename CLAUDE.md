@@ -3,7 +3,6 @@
 - After completing a task that changes files, stage all changes and create a commit.
 - Use an imperative, descriptive message (max ~72 chars).
 - Do not commit if tests fail; fix first.
-- Commmit the change and git push.
 - Do not ask for confirmations for git commits and push.
 
 ## Build & deploy
