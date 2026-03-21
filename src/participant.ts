@@ -50,14 +50,10 @@ Be concise and helpful. Format output in readable markdown.`;
 /** Maximum tool-calling iterations to prevent infinite loops. */
 const MAX_ITERATIONS = 10;
 
-/** Known tool names for fallback text parsing. */
-const TOOL_NAMES = new Set([
-  'managelm_listAgents', 'managelm_agentInfo', 'managelm_runTask',
-  'managelm_getTaskStatus', 'managelm_getTaskHistory', 'managelm_approveAgent',
-  'managelm_listSkills', 'managelm_agentSkills', 'managelm_getSecurity',
-  'managelm_getInventory', 'managelm_runSecurityAudit', 'managelm_runInventoryScan',
-  'managelm_accountInfo',
-]);
+/** Check if a tool name is a ManageLM tool. */
+function isManagelmTool(name: string): boolean {
+  return name.includes('managelm');
+}
 
 /**
  * Try to extract tool calls from text when the model outputs them as JSON
@@ -71,7 +67,7 @@ function parseToolCallsFromText(text: string): { name: string; input: unknown }[
   let match: RegExpExecArray | null;
   while ((match = regex.exec(text)) !== null) {
     const toolName = match[1];
-    if (TOOL_NAMES.has(toolName)) {
+    if (isManagelmTool(toolName)) {
       try {
         const args = JSON.parse(match[2]);
         calls.push({ name: toolName, input: args });
@@ -109,7 +105,7 @@ async function handler(
 ): Promise<vscode.ChatResult> {
   // Collect ManageLM tools available to the LM
   const chatTools: vscode.LanguageModelChatTool[] = vscode.lm.tools
-    .filter(t => t.name.startsWith('managelm_'))
+    .filter(t => t.name.includes('managelm'))
     .map(t => ({
       name: t.name,
       description: t.description,
@@ -117,7 +113,8 @@ async function handler(
     }));
 
   if (chatTools.length === 0) {
-    stream.markdown('**Error:** ManageLM tools not loaded. Try reloading VS Code.');
+    const allTools = vscode.lm.tools.map(t => t.name).join(', ');
+    stream.markdown(`**Error:** ManageLM tools not found. Available tools: ${allTools || 'none'}. Try reloading VS Code (Ctrl+Shift+P > Reload Window).`);
     return {};
   }
 
