@@ -1,0 +1,297 @@
+{
+  "name": "managelm",
+  "displayName": "ManageLM",
+  "description": "Manage Linux servers from VS Code Copilot Chat",
+  "version": "1.0.0",
+  "publisher": "managelm",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/managelm/vscode-extension"
+  },
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "Chat",
+    "Other"
+  ],
+  "keywords": [
+    "managelm",
+    "linux",
+    "server",
+    "management",
+    "copilot",
+    "devops"
+  ],
+  "extensionDependencies": [
+    "github.copilot-chat"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+"chatParticipants": [
+      {
+        "id": "managelm.chat",
+        "fullName": "ManageLM",
+        "name": "managelm",
+        "description": "Manage your Linux servers through natural language",
+        "isSticky": true
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "managelm_listAgents",
+        "displayName": "List Servers",
+        "modelDescription": "List all ManageLM agents (managed Linux servers) with their online/offline/pending status, health metrics (CPU, memory, disk usage), OS information, IP address, and group assignments. Use this to discover available servers before running tasks on them.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "managelm_agentInfo",
+        "displayName": "Server Details",
+        "modelDescription": "Get detailed information about a specific server including health metrics, OS info, LLM configuration, assigned skills, and group memberships. Use hostname or display name to identify the server.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "Server hostname or display name"
+            }
+          },
+          "required": [
+            "hostname"
+          ]
+        }
+      },
+      {
+        "name": "managelm_runTask",
+        "displayName": "Run Task",
+        "modelDescription": "Run a task on a server using a specific skill. The instruction is a natural language description of what to do. Common skills: base (read files, system info), system (OS config, performance), packages (install/remove/update), services (systemd, cron, logs), users (accounts, SSH keys), network (interfaces, DNS, ports), security (hardening, fail2ban, SSL), files (read/write files). Use managelm_listSkills to see all available skills.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "description": "Server hostname, group name, or 'all'"
+            },
+            "skill": {
+              "type": "string",
+              "description": "Skill slug (e.g. base, system, packages, services, users, network, security, files)"
+            },
+            "instruction": {
+              "type": "string",
+              "description": "Natural language instruction describing what to do"
+            }
+          },
+          "required": [
+            "target",
+            "skill",
+            "instruction"
+          ]
+        }
+      },
+      {
+        "name": "managelm_getTaskStatus",
+        "displayName": "Task Status",
+        "modelDescription": "Get the status and result of a previously submitted task by its ID. Returns status (sent, running, completed, failed, timeout), summary, error message, and whether it made changes.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "taskId": {
+              "type": "string",
+              "description": "Task ID"
+            }
+          },
+          "required": [
+            "taskId"
+          ]
+        }
+      },
+      {
+        "name": "managelm_getTaskHistory",
+        "displayName": "Task History",
+        "modelDescription": "Get recent task history for a server. Shows past tasks with their status, skill, summary, and timestamps.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "Server hostname"
+            },
+            "limit": {
+              "type": "number",
+              "description": "Max number of results (default 20)"
+            }
+          },
+          "required": [
+            "hostname"
+          ]
+        }
+      },
+      {
+        "name": "managelm_approveAgent",
+        "displayName": "Approve Agent",
+        "modelDescription": "Approve a pending agent enrollment. Use this when a new server has enrolled and needs approval to become active.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "Server hostname to approve"
+            }
+          },
+          "required": [
+            "hostname"
+          ]
+        }
+      },
+      {
+        "name": "managelm_listSkills",
+        "displayName": "List Skills",
+        "modelDescription": "List all skills available in the ManageLM account. Skills define what operations can be performed on servers (e.g. packages, services, security, files). Returns skill name, slug, and description.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "managelm_agentSkills",
+        "displayName": "Server Skills",
+        "modelDescription": "List skills assigned to a specific server. Shows which operations the server can perform.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "Server hostname"
+            }
+          },
+          "required": [
+            "hostname"
+          ]
+        }
+      },
+      {
+        "name": "managelm_getSecurity",
+        "displayName": "Security Findings",
+        "modelDescription": "Get security audit findings for a server. Returns findings with severity (critical, high, medium, low, pass), category, title, explanation, and remediation suggestions.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "Server hostname"
+            }
+          },
+          "required": [
+            "hostname"
+          ]
+        }
+      },
+      {
+        "name": "managelm_getInventory",
+        "displayName": "Server Inventory",
+        "modelDescription": "Get system inventory for a server. Returns installed packages, running services, containers, and system info with status and version details.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "Server hostname"
+            }
+          },
+          "required": [
+            "hostname"
+          ]
+        }
+      },
+      {
+        "name": "managelm_runSecurityAudit",
+        "displayName": "Run Security Audit",
+        "modelDescription": "Start a security audit on a server. The audit checks for vulnerabilities, misconfigurations, and security best practices. Results can be retrieved with managelm_getSecurity once completed.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "Server hostname"
+            }
+          },
+          "required": [
+            "hostname"
+          ]
+        }
+      },
+      {
+        "name": "managelm_runInventoryScan",
+        "displayName": "Run Inventory Scan",
+        "modelDescription": "Start an inventory scan on a server. Discovers installed packages, running services, containers, and system details. Results can be retrieved with managelm_getInventory once completed.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "hostname": {
+              "type": "string",
+              "description": "Server hostname"
+            }
+          },
+          "required": [
+            "hostname"
+          ]
+        }
+      },
+      {
+        "name": "managelm_accountInfo",
+        "displayName": "Account Info",
+        "modelDescription": "Get ManageLM account information including plan details, team members, and usage limits.",
+        "canBeReferencedInPrompt": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    ],
+    "configuration": {
+      "title": "ManageLM",
+      "properties": {
+        "managelm.portalUrl": {
+          "type": "string",
+          "default": "https://app.managelm.com",
+          "description": "ManageLM portal URL"
+        },
+        "managelm.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "ManageLM API key (from Portal > Settings > MCP & API)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "package": "vsce package",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.15",
+    "@types/vscode": "^1.99.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.7.0"
+  }
+}
