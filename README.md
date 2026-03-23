@@ -57,6 +57,7 @@ The `@managelm` participant can:
 
 - **List and inspect servers** — status, health metrics, OS info, IP addresses
 - **Run tasks** — execute any skill (packages, services, users, security, files, etc.)
+- **Interactive tasks** — when the agent needs input (domain name, password, etc.), Copilot asks you and answers automatically
 - **Check task status and history** — track running and completed tasks
 - **Security audits** — start audits and view findings
 - **Inventory scans** — discover packages, services, and containers
