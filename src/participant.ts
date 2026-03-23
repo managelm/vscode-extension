@@ -60,6 +60,18 @@ const TOOL_DEFS: vscode.LanguageModelChatTool[] = [
     },
   },
   {
+    name: 'answerTask',
+    description: 'Answer a question from an interactive task that returned needs_input status. The agent paused because it needs information (domain name, password, config choice). Provide the answer to resume.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'Task ID that is in needs_input status' },
+        answer: { type: 'string', description: 'Answer to the question asked by the agent' },
+      },
+      required: ['taskId', 'answer'],
+    },
+  },
+  {
     name: 'getTaskStatus',
     description: 'Get status and result of a task by its ID.',
     inputSchema: {
@@ -168,9 +180,31 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       if (!agent) { return JSON.stringify({ error: `No agent found matching "${input.target}"` }); }
       if (agent.status !== 'online') { return JSON.stringify({ error: `Agent "${agent.hostname}" is ${agent.status}` }); }
       const result = await api.runTask(agent.id, input.skill as string, input.instruction as string);
+      // Interactive task — the agent needs user input before it can continue
+      if (result.task.status === 'needs_input') {
+        return JSON.stringify({
+          task_id: result.task.id, status: 'needs_input',
+          question: result.task.question || 'The agent needs more information to continue.',
+          message: 'Use answerTask with this task_id and your answer to continue.',
+        });
+      }
       return JSON.stringify({
         task_id: result.task.id, status: result.task.status, summary: result.task.summary,
         error: result.task.error_message, mutating: result.task.mutating, result: result.result,
+      });
+    }
+    case 'answerTask': {
+      const result = await api.answerTask(input.taskId as string, input.answer as string);
+      if (result.task.status === 'needs_input') {
+        return JSON.stringify({
+          task_id: result.task.id, status: 'needs_input',
+          question: result.task.question || 'The agent needs more information.',
+          message: 'Use answerTask with this task_id and your answer to continue.',
+        });
+      }
+      return JSON.stringify({
+        task_id: result.task.id, status: result.task.status, summary: result.task.summary,
+        error: result.task.error_message, result: result.result,
       });
     }
     case 'getTaskStatus': {
