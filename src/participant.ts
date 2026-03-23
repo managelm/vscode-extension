@@ -185,7 +185,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         return JSON.stringify({
           task_id: result.task.id, status: 'needs_input',
           question: result.task.question || 'The agent needs more information to continue.',
-          message: 'Use answerTask with this task_id and your answer to continue.',
+          message: 'IMPORTANT: Do NOT answer this yourself. Ask the user this question, then call answerTask with their response.',
         });
       }
       return JSON.stringify({
@@ -199,7 +199,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         return JSON.stringify({
           task_id: result.task.id, status: 'needs_input',
           question: result.task.question || 'The agent needs more information.',
-          message: 'Use answerTask with this task_id and your answer to continue.',
+          message: 'IMPORTANT: Do NOT answer this yourself. Ask the user this question, then call answerTask with their response.',
         });
       }
       return JSON.stringify({
