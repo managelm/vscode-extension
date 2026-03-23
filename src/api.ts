@@ -29,9 +29,10 @@ export interface Task {
   agent_id: string;
   skill_slug: string;
   operation: string;
-  status: 'sent' | 'running' | 'completed' | 'failed' | 'timeout';
+  status: 'sent' | 'running' | 'completed' | 'failed' | 'timeout' | 'needs_input' | 'answered';
   error_message: string | null;
   summary: string | null;
+  question: string | null;
   mutating: boolean;
   created_at: string;
   completed_at: string | null;
@@ -206,6 +207,13 @@ export async function runTask(agentId: string, skillSlug: string, instruction: s
 export async function getTask(taskId: string): Promise<Task> {
   const data = await api<{ task: Task }>('GET', `/tasks/${encodeURIComponent(taskId)}`);
   return data.task;
+}
+
+/** Answer a question from an interactive task (needs_input status). */
+export async function answerTask(taskId: string, answer: string): Promise<TaskSubmitResult> {
+  return api<TaskSubmitResult>('POST', `/tasks/${encodeURIComponent(taskId)}/answer?wait=true`, {
+    answer,
+  }, TASK_TIMEOUT_MS);
 }
 
 /** Get recent tasks for an agent. */
