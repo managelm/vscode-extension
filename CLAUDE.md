@@ -28,3 +28,8 @@
 - The participant defines tool schemas inline and calls the API directly (not via vscode.lm.tools).
 - All API calls go through src/api.ts with proper error handling.
 - Never store API keys in code; they come from VS Code settings.
+
+## Versioning
+
+- Version is in `package.json`. Bump it before deploying a new release.
+- No separate changelog file — release notes go in the GitHub release description.
