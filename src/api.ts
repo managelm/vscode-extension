@@ -285,6 +285,68 @@ export async function runInventoryScan(agentId: string): Promise<void> {
   await api('POST', `/inventory/${encodeURIComponent(agentId)}`);
 }
 
+// ─── Search ──────────────────────────────────────────────────────────
+
+/** Search agents by health, OS, status, group, or free text. */
+export async function searchAgents(params: Record<string, string | number>): Promise<any[]> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) { if (v !== undefined && v !== '') qs.set(k, String(v)); }
+  const data = await api<{ agents: any[] }>('GET', `/search/agents?${qs}`);
+  return data.agents;
+}
+
+/** Search inventory items across all agents. */
+export async function searchInventory(params: Record<string, string>): Promise<any[]> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, v); }
+  const data = await api<{ items: any[] }>('GET', `/search/inventory?${qs}`);
+  return data.items;
+}
+
+/** Search security findings across all agents. */
+export async function searchSecurity(params: Record<string, string>): Promise<any[]> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, v); }
+  const data = await api<{ findings: any[] }>('GET', `/search/security?${qs}`);
+  return data.findings;
+}
+
+/** Search SSH keys across infrastructure. */
+export async function searchSshKeys(params: Record<string, string>): Promise<Record<string, unknown>> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, v); }
+  return api('GET', `/search/ssh-keys?${qs}`);
+}
+
+/** Search sudo rules across infrastructure. */
+export async function searchSudoRules(params: Record<string, string>): Promise<any[]> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, v); }
+  const data = await api<{ rules: any[] }>('GET', `/search/sudo-rules?${qs}`);
+  return data.rules;
+}
+
+// ─── Task Changes ────────────────────────────────────────────────────
+
+/** Get file changes made by a task. */
+export async function getTaskChanges(taskId: string, fullDiff = false): Promise<Record<string, unknown>> {
+  const qs = fullDiff ? '?full_diff=true' : '';
+  const data = await api<{ changeset: Record<string, unknown> }>('GET', `/tasks/${encodeURIComponent(taskId)}/changes${qs}`);
+  return data.changeset;
+}
+
+/** Revert file changes from a task. */
+export async function revertTask(taskId: string): Promise<Record<string, unknown>> {
+  return api('POST', `/tasks/${encodeURIComponent(taskId)}/revert`);
+}
+
+// ─── Email ───────────────────────────────────────────────────────────
+
+/** Send an email to the authenticated user. */
+export async function sendEmail(subject: string, body: string): Promise<Record<string, unknown>> {
+  return api('POST', '/email', { subject, body });
+}
+
 // ─── Account ─────────────────────────────────────────────────────────
 
 /** Get account info. */

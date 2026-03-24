@@ -156,6 +156,106 @@ const TOOL_DEFS: vscode.LanguageModelChatTool[] = [
     description: 'Get ManageLM account information (plan, members, usage).',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'searchAgents',
+    description: 'Search agents by health metrics, OS, status, group, or free text. No commands dispatched.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Free-text search' },
+        status: { type: 'string', description: 'Filter: online, offline' },
+        group: { type: 'string', description: 'Filter by group name' },
+        cpu_above: { type: 'number', description: 'CPU usage above %' },
+        memory_above: { type: 'number', description: 'Memory usage above %' },
+        disk_above: { type: 'number', description: 'Disk usage above %' },
+      },
+    },
+  },
+  {
+    name: 'searchInventory',
+    description: 'Search installed packages, running services, and containers across all servers. Queries stored inventory reports.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search by name, version, or details (e.g. nginx, docker)' },
+        category: { type: 'string', description: 'Filter: service, package, container, network, storage' },
+        status: { type: 'string', description: 'Filter: running, stopped, installed, info' },
+        group: { type: 'string', description: 'Filter by group name' },
+      },
+    },
+  },
+  {
+    name: 'searchSecurity',
+    description: 'Search security findings across all servers. Queries stored audit reports.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search finding titles or explanations' },
+        severity: { type: 'string', description: 'Minimum severity: critical, high, medium, low' },
+        category: { type: 'string', description: 'Filter: SSH, Firewall, TLS, Users, Ports, etc.' },
+        group: { type: 'string', description: 'Filter by group name' },
+      },
+    },
+  },
+  {
+    name: 'searchSshKeys',
+    description: 'Search SSH keys across infrastructure — deployed keys from access scans + registered profile keys.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search by fingerprint or system username' },
+        user: { type: 'string', description: 'Filter by ManageLM user name or email' },
+        unknown_only: { type: 'string', description: 'Only unknown keys: true/false' },
+        group: { type: 'string', description: 'Filter by group name' },
+      },
+    },
+  },
+  {
+    name: 'searchSudoRules',
+    description: 'Search sudo privileges across all servers.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search by system username' },
+        user: { type: 'string', description: 'Filter by ManageLM user name or email' },
+        nopasswd_only: { type: 'string', description: 'Only NOPASSWD rules: true/false' },
+        group: { type: 'string', description: 'Filter by group name' },
+      },
+    },
+  },
+  {
+    name: 'getTaskChanges',
+    description: 'View file changes made by a task (files modified in /etc/ and tracked dirs).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'Task ID' },
+        fullDiff: { type: 'boolean', description: 'Fetch full diff from agent (requires online)' },
+      },
+      required: ['taskId'],
+    },
+  },
+  {
+    name: 'revertTask',
+    description: 'Revert file changes from a previous task. Requires agent online.',
+    inputSchema: {
+      type: 'object',
+      properties: { taskId: { type: 'string', description: 'Task ID to revert' } },
+      required: ['taskId'],
+    },
+  },
+  {
+    name: 'sendEmail',
+    description: 'Send an email report or summary to the authenticated user.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        subject: { type: 'string', description: 'Email subject' },
+        body: { type: 'string', description: 'Email body (plain text)' },
+      },
+      required: ['subject', 'body'],
+    },
+  },
 ];
 
 // ─── Tool executor — calls API directly ─────────────────────────────
@@ -263,6 +363,38 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     case 'accountInfo': {
       const info = await api.getAccountInfo();
       return JSON.stringify(info);
+    }
+    case 'searchAgents': {
+      const results = await api.searchAgents(input as Record<string, string | number>);
+      return JSON.stringify({ agents: results, total: results.length });
+    }
+    case 'searchInventory': {
+      const items = await api.searchInventory(input as Record<string, string>);
+      return JSON.stringify({ items, total: items.length });
+    }
+    case 'searchSecurity': {
+      const findings = await api.searchSecurity(input as Record<string, string>);
+      return JSON.stringify({ findings, total: findings.length });
+    }
+    case 'searchSshKeys': {
+      const keys = await api.searchSshKeys(input as Record<string, string>);
+      return JSON.stringify(keys);
+    }
+    case 'searchSudoRules': {
+      const rules = await api.searchSudoRules(input as Record<string, string>);
+      return JSON.stringify({ rules, total: rules.length });
+    }
+    case 'getTaskChanges': {
+      const changeset = await api.getTaskChanges(input.taskId as string, !!input.fullDiff);
+      return JSON.stringify(changeset);
+    }
+    case 'revertTask': {
+      const revertResult = await api.revertTask(input.taskId as string);
+      return JSON.stringify(revertResult);
+    }
+    case 'sendEmail': {
+      const emailResult = await api.sendEmail(input.subject as string, input.body as string);
+      return JSON.stringify(emailResult);
     }
     default:
       return JSON.stringify({ error: `Unknown tool: ${name}` });
