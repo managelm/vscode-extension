@@ -111,7 +111,7 @@ async function api<T = unknown>(
     'Content-Type': 'application/json',
   };
 
-  // Abort on timeout
+  // Abort on timeout — covers both fetch and response body parsing
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -121,9 +121,21 @@ async function api<T = unknown>(
   }
 
   let res: Response;
+  let json: Record<string, unknown>;
   try {
     res = await fetch(`${portalUrl}/api${endpoint}`, init);
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      if (!res.ok) {
+        throw new ApiError(res.status, `HTTP ${res.status} — portal returned non-JSON response`);
+      }
+      throw new ApiError(res.status, 'Unexpected non-JSON response from portal');
+    }
+
+    json = await res.json() as Record<string, unknown>;
   } catch (err: unknown) {
+    if (err instanceof ApiError) { throw err; }
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
     }
@@ -131,16 +143,6 @@ async function api<T = unknown>(
   } finally {
     clearTimeout(timer);
   }
-
-  const contentType = res.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    if (!res.ok) {
-      throw new ApiError(res.status, `HTTP ${res.status} — portal returned non-JSON response`);
-    }
-    throw new ApiError(res.status, 'Unexpected non-JSON response from portal');
-  }
-
-  const json = await res.json() as Record<string, unknown>;
 
   if (!res.ok) {
     throw new ApiError(res.status, (json.error as string) || `HTTP ${res.status}`);
