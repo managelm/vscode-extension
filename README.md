@@ -23,7 +23,7 @@ code --install-extension managelm.managelm
 Download the `.vsix` from [GitHub Releases](https://github.com/managelm/vscode-extension/releases) and install:
 
 ```bash
-code --install-extension managelm-1.0.0.vsix
+code --install-extension managelm-1.0.1.vsix
 ```
 
 ## Setup
@@ -58,21 +58,25 @@ The `@managelm` participant can:
 - **List and inspect servers** — status, health metrics, OS info, IP addresses
 - **Run tasks** — execute any skill (packages, services, users, security, files, etc.)
 - **Interactive tasks** — when the agent needs input (domain name, password, etc.), Copilot asks you and answers automatically
+- **Follow-up tasks** — continue a conversation on a completed task within 5 minutes
 - **Check task status and history** — track running and completed tasks
 - **Security audits** — start audits and view findings
 - **Inventory scans** — discover packages, services, and containers
+- **Search infrastructure** — find agents by health/OS, search inventory, security findings, SSH keys, sudo rules
 - **Approve agents** — approve new server enrollments
+- **Task changes** — view file diffs and revert changes
 - **Account info** — view plan, members, and usage
+- **Send email** — deliver reports or summaries to your inbox
 
 ## How It Works
 
 ```
 VS Code Copilot Chat          ManageLM Portal           Agent (on host)
-┌──────────────────┐    REST API    ┌──────────────┐    WebSocket    ┌──────────┐
+┌──────────────────┐    REST API ┌──────────────┐    WebSocket┌──────────┐
 │ @managelm check  │ ──────────► │  Portal API  │ ──────────► │  Agent   │
-│ disk on web-01   │              │  /api/tasks  │              │  (LLM)   │
+│ disk on web-01   │             │  /api/tasks  │             │  (LLM)   │
 │                  │ ◄────────── │              │ ◄────────── │          │
-│ Disk: 41% used   │    Result    └──────────────┘    Result    └──────────┘
+│ Disk: 41% used   │    Result   └──────────────┘    Result   └──────────┘
 └──────────────────┘
 ```
 
@@ -89,6 +93,17 @@ VS Code Copilot Chat          ManageLM Portal           Agent (on host)
 - **ManageLM Portal** — your hosted control plane ([managelm.com](https://www.managelm.com))
 - **ManageLM Agent** — installed on each managed Linux server
 - **API Key** — from Portal > Settings > MCP & API
+
+## Project Structure
+
+```
+src/
+  extension.ts    — entry point: registers the @managelm chat participant
+  participant.ts  — agentic tool-calling loop (LM ↔ tools)
+  tools.ts        — tool definitions (JSON Schema) passed to the LM
+  executor.ts     — tool dispatch: validates input, calls API, returns JSON
+  api.ts          — ManageLM portal REST client with typed responses
+```
 
 ## Development
 
