@@ -116,7 +116,8 @@ export async function executeTool(name: string, input: Record<string, unknown>):
       if (!hostname) { return JSON.stringify({ error: 'hostname is required' }); }
       const agent = await api.findAgentByHostname(hostname);
       if (!agent) { return JSON.stringify({ error: `No agent found matching "${hostname}"` }); }
-      const tasks = await api.getTaskHistory(agent.id, (input.limit as number) || 20);
+      const limit = typeof input.limit === 'number' ? input.limit : 20;
+      const tasks = await api.getTaskHistory(agent.id, limit);
       return JSON.stringify({ hostname: agent.hostname, tasks, total: tasks.length });
     }
     case 'getTaskChanges': {
