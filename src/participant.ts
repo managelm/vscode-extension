@@ -256,6 +256,59 @@ const TOOL_DEFS: vscode.LanguageModelChatTool[] = [
       required: ['subject', 'body'],
     },
   },
+  {
+    name: 'followUpTask',
+    description: 'Continue a conversation on a completed task. Loads prior context. Context expires after 5 minutes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'ID of the completed task to follow up on' },
+        instruction: { type: 'string', description: 'Follow-up message or question' },
+      },
+      required: ['taskId', 'instruction'],
+    },
+  },
+  {
+    name: 'getPentestCredits',
+    description: 'Get credit balance for pentests. Check this before starting a pentest.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'getPentestCatalog',
+    description: 'Get available pentest tests with descriptions and credit costs.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'startPentest',
+    description: 'Start a pentest on a public agent. Requires credits and verified domains for target URLs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        hostname: { type: 'string', description: 'Server hostname (must be a public agent)' },
+        tests: { type: 'string', description: 'Comma-separated test slugs (e.g. nuclei_vuln,testssl_full)' },
+        targetUrls: { type: 'string', description: 'Comma-separated target URLs (optional)' },
+      },
+      required: ['hostname', 'tests'],
+    },
+  },
+  {
+    name: 'getPentest',
+    description: 'Get pentest status and results for an agent. Returns score, findings, and status.',
+    inputSchema: {
+      type: 'object',
+      properties: { hostname: { type: 'string', description: 'Server hostname' } },
+      required: ['hostname'],
+    },
+  },
+  {
+    name: 'getPentestHistory',
+    description: 'Get past pentest results for an agent (up to 50).',
+    inputSchema: {
+      type: 'object',
+      properties: { hostname: { type: 'string', description: 'Server hostname' } },
+      required: ['hostname'],
+    },
+  },
 ];
 
 // ─── Tool executor — calls API directly ─────────────────────────────
@@ -395,6 +448,49 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     case 'sendEmail': {
       const emailResult = await api.sendEmail(input.subject as string, input.body as string);
       return JSON.stringify(emailResult);
+    }
+    case 'followUpTask': {
+      const followResult = await api.followUpTask(input.taskId as string, input.instruction as string);
+      if (followResult.task.status === 'needs_input') {
+        return JSON.stringify({
+          task_id: followResult.task.id, status: 'needs_input',
+          question: followResult.task.question || 'The agent needs more information.',
+          message: 'Ask the user this question, then call answerTask with their response.',
+        });
+      }
+      return JSON.stringify({
+        task_id: followResult.task.id, status: followResult.task.status, summary: followResult.task.summary,
+        error: followResult.task.error_message, result: followResult.result,
+      });
+    }
+    case 'getPentestCredits': {
+      const credits = await api.getPentestCredits();
+      return JSON.stringify(credits);
+    }
+    case 'getPentestCatalog': {
+      const catalog = await api.getPentestCatalog();
+      return JSON.stringify(catalog);
+    }
+    case 'startPentest': {
+      const agent = await api.findAgentByHostname(input.hostname as string);
+      if (!agent) { return JSON.stringify({ error: `No agent found matching "${input.hostname}"` }); }
+      if (agent.status !== 'online') { return JSON.stringify({ error: `Agent "${agent.hostname}" is ${agent.status}` }); }
+      const tests = (input.tests as string).split(',').map(t => t.trim()).filter(Boolean);
+      const targetUrls = input.targetUrls ? (input.targetUrls as string).split(',').map(u => u.trim()).filter(Boolean) : [];
+      const pentestResult = await api.startPentest(agent.id, tests, targetUrls);
+      return JSON.stringify(pentestResult);
+    }
+    case 'getPentest': {
+      const agent = await api.findAgentByHostname(input.hostname as string);
+      if (!agent) { return JSON.stringify({ error: `No agent found matching "${input.hostname}"` }); }
+      const pentest = await api.getPentest(agent.id);
+      return JSON.stringify({ hostname: agent.hostname, ...pentest });
+    }
+    case 'getPentestHistory': {
+      const agent = await api.findAgentByHostname(input.hostname as string);
+      if (!agent) { return JSON.stringify({ error: `No agent found matching "${input.hostname}"` }); }
+      const history = await api.getPentestHistory(agent.id);
+      return JSON.stringify({ hostname: agent.hostname, history });
     }
     default:
       return JSON.stringify({ error: `Unknown tool: ${name}` });
