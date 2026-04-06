@@ -356,39 +356,6 @@ export async function followUpTask(taskId: string, instruction: string): Promise
   }, TASK_TIMEOUT_MS);
 }
 
-// ─── Pentest ────────────────────────────────────────────────────────
-
-/** Get credit balance for pentests. */
-export async function getPentestCredits(): Promise<Record<string, unknown>> {
-  return api('GET', '/pentest/credits');
-}
-
-/** Get available pentest test catalog. */
-export async function getPentestCatalog(): Promise<Record<string, unknown>> {
-  return api('GET', '/pentest/tests');
-}
-
-/** Start a pentest on an agent. */
-export async function startPentest(
-  agentId: string,
-  tests: string[],
-  targetUrls: string[] = [],
-): Promise<Record<string, unknown>> {
-  const body: Record<string, unknown> = { tests };
-  if (targetUrls.length > 0) body.target_urls = targetUrls;
-  return api('POST', `/pentest/${encodeURIComponent(agentId)}`, body);
-}
-
-/** Get pentest status and results for an agent. */
-export async function getPentest(agentId: string): Promise<Record<string, unknown>> {
-  return api('GET', `/pentest/${encodeURIComponent(agentId)}`);
-}
-
-/** Get pentest history for an agent. */
-export async function getPentestHistory(agentId: string): Promise<any[]> {
-  return api<any[]>('GET', `/pentest/history/${encodeURIComponent(agentId)}`);
-}
-
 // ─── Account ─────────────────────────────────────────────────────────
 
 /** Get account info. */
