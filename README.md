@@ -1,46 +1,67 @@
-# ManageLM — VS Code Extension
+<p align="center">
+  <a href="https://www.managelm.com">
+    <img src="https://www.managelm.com/assets/ManageLM.png" alt="ManageLM" height="50">
+  </a>
+</p>
 
-Manage your Linux servers directly from VS Code Copilot Chat using natural
-language.
+<h3 align="center">VS Code Extension</h3>
 
-ManageLM connects Copilot Chat to your infrastructure through a secure
-cloud portal and lightweight agents running on your servers. Ask
-`@managelm` to check system status, manage packages, configure services,
-run security audits, and more — across one server or an entire fleet.
+<p align="center">
+  Manage Linux &amp; Windows servers from VS Code Copilot Chat using natural language.
+</p>
 
-## Installation
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
+  <a href="https://www.managelm.com"><img src="https://img.shields.io/badge/website-managelm.com-cyan" alt="Website"></a>
+  <a href="https://www.managelm.com/plugins/vscode.html"><img src="https://img.shields.io/badge/docs-full%20documentation-green" alt="Docs"></a>
+  <a href="https://github.com/managelm/vscode-extension/releases"><img src="https://img.shields.io/github/v/release/managelm/vscode-extension" alt="Release"></a>
+</p>
 
-### From the VS Code Marketplace
+<p align="center">
+  <img src="assets/screenshot.png" alt="VS Code Copilot Chat with @managelm — copying files to a remote server" width="700">
+</p>
 
-Search for **ManageLM** in the Extensions panel, or:
+---
+
+Type `@managelm` in Copilot Chat to check system status, manage packages, configure services, run security audits, and more — across one server or an entire fleet. The extension connects Copilot to your infrastructure through the ManageLM portal and lightweight agents on your servers.
+
+## Features
+
+- **Natural language** — describe tasks in plain English; the extension picks the right tool
+- **13 built-in tools** — list servers, run tasks, check status, security audits, inventory, and more
+- **Multi-server targeting** — target a hostname, group, or all agents
+- **Interactive tasks** — when the agent needs input, Copilot asks you and answers automatically
+- **Security audits** — start audits and view findings with severity and remediation
+- **Inventory scans** — discover packages, services, containers
+- **Cross-infrastructure search** — find agents by health/OS, search inventory, security, SSH keys
+- **Copilot native** — works inside Copilot Chat, no separate UI
+
+## Quick Start
+
+### 1. Install
+
+From the VS Code Marketplace:
 
 ```bash
 code --install-extension managelm.managelm
 ```
 
-### From VSIX
+Or download the `.vsix` from [GitHub Releases](https://github.com/managelm/vscode-extension/releases).
 
-Download the `.vsix` from [GitHub Releases](https://github.com/managelm/vscode-extension/releases) and install:
+### 2. Configure
 
-```bash
-code --install-extension managelm-1.0.1.vsix
-```
+1. Open **Settings** (`Cmd+,` / `Ctrl+,`) and search for **ManageLM**
+2. Set your **API Key** (from Portal > Settings > MCP & API)
+3. (Optional) Set your **Portal URL** if self-hosting
 
-## Setup
-
-1. Install the extension
-2. Open **Settings** (`Cmd+,` / `Ctrl+,`) and search for **ManageLM**
-3. Set your **API Key** (from Portal > Settings > MCP & API)
-4. (Optional) If self-hosting, set your **Portal URL**
-
-## Usage
+### 3. Use it
 
 Open Copilot Chat and type `@managelm` followed by your request:
 
 ```
 @managelm show me all my servers
 
-@managelm check disk usage on web-prod-1
+@managelm check disk usage on web-prod-01
 
 @managelm install nginx on all servers in the staging group
 
@@ -48,85 +69,67 @@ Open Copilot Chat and type `@managelm` followed by your request:
 
 @managelm which servers have CPU above 80%?
 
-@managelm list running services on lb-01
-
 @managelm approve the new server that just enrolled
 ```
 
-The `@managelm` participant can:
-
-- **List and inspect servers** — status, health metrics, OS info, IP addresses
-- **Run tasks** — execute any skill (packages, services, users, security, files, etc.)
-- **Interactive tasks** — when the agent needs input (domain name, password, etc.), Copilot asks you and answers automatically
-- **Follow-up tasks** — continue a conversation on a completed task within 5 minutes
-- **Check task status and history** — track running and completed tasks
-- **Security audits** — start audits and view findings
-- **Inventory scans** — discover packages, services, and containers
-- **Search infrastructure** — find agents by health/OS, search inventory, security findings, SSH keys, sudo rules
-- **Approve agents** — approve new server enrollments
-- **Task changes** — view file diffs and revert changes
-- **Account info** — view plan, members, and usage
-- **Send email** — deliver reports or summaries to your inbox
-
-## How It Works
+## Architecture
 
 ```
-VS Code Copilot Chat          ManageLM Portal           Agent (on host)
-┌──────────────────┐    REST API ┌──────────────┐    WebSocket┌──────────┐
-│ @managelm check  │ ──────────► │  Portal API  │ ──────────► │  Agent   │
-│ disk on web-01   │             │  /api/tasks  │             │  (LLM)   │
-│                  │ ◄────────── │              │ ◄────────── │          │
-│ Disk: 41% used   │    Result   └──────────────┘    Result   └──────────┘
-└──────────────────┘
+VS Code Copilot Chat ── REST API ──> ManageLM Portal ── WebSocket ──> Agent on Server
+  @managelm                          (cloud control      (outbound      (local LLM,
+                                      plane)              only)          skill exec)
 ```
 
-1. You type a natural language request in Copilot Chat
-2. Copilot's LM decides which ManageLM tools to call
-3. The extension calls the ManageLM portal REST API
-4. The portal dispatches the task to the agent on your server
-5. The agent executes it and returns the result
-6. Copilot formats and presents the response
+Agents use a local LLM — your data never leaves your infrastructure. No SSH, no inbound ports.
+
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `listAgents` | All servers with status, health, OS, IPs |
+| `agentInfo` | Detailed info for a single server |
+| `runTask` | Execute a skill-based task on a server |
+| `getTaskStatus` | Check task status and result |
+| `getTaskHistory` | Recent tasks for a server |
+| `approveAgent` | Approve a pending enrollment |
+| `listSkills` | All skills in your account |
+| `agentSkills` | Skills assigned to a server |
+| `getSecurity` | Security audit findings |
+| `getInventory` | System inventory (packages, services, containers) |
+| `runSecurityAudit` | Start a security audit |
+| `runInventoryScan` | Start an inventory scan |
+| `accountInfo` | Account plan, members, usage |
 
 ## Requirements
 
 - **VS Code 1.99+** with GitHub Copilot Chat
-- **ManageLM Portal** — your hosted control plane ([managelm.com](https://www.managelm.com))
-- **ManageLM Agent** — installed on each managed Linux server
+- **ManageLM account** — [sign up free](https://app.managelm.com/register) (up to 10 agents)
+- **ManageLM Agent** — installed on each server you want to manage
 - **API Key** — from Portal > Settings > MCP & API
-
-## Project Structure
-
-```
-src/
-  extension.ts    — entry point: registers the @managelm chat participant
-  participant.ts  — agentic tool-calling loop (LM ↔ tools)
-  tools.ts        — tool definitions (JSON Schema) passed to the LM
-  executor.ts     — tool dispatch: validates input, calls API, returns JSON
-  api.ts          — ManageLM portal REST client with typed responses
-```
 
 ## Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Watch mode
-npm run watch
-
-# Package as .vsix
-npm run package
+npm install        # install dependencies
+npm run build      # compile TypeScript
+npm run watch      # watch mode
+npm run package    # create .vsix
 ```
+
+## Other Integrations
+
+- [Claude Code Extension](https://github.com/managelm/claude-extension) — MCP integration for Claude
+- [ChatGPT Plugin](https://github.com/managelm/openai-gpt) — manage servers from ChatGPT
+- [n8n Plugin](https://github.com/managelm/n8n-plugin) — infrastructure automation workflows
+- [Slack Plugin](https://github.com/managelm/slack-plugin) — notifications and commands in Slack
+- [OpenClaw Plugin](https://github.com/managelm/openclaw-plugin) — OpenClaw integration
 
 ## Links
 
-- [ManageLM Website](https://www.managelm.com)
-- [Documentation](https://www.managelm.com/doc/)
-- [GitHub](https://github.com/managelm/vscode-extension)
+- [Website](https://www.managelm.com)
+- [Full Documentation](https://www.managelm.com/plugins/vscode.html)
+- [Portal](https://app.managelm.com)
 
 ## License
 
-[MIT](LICENSE)
+[Apache 2.0](LICENSE)
