@@ -130,10 +130,18 @@ fi
 
 # ── Upload .vsix as release asset ────────────────────────────────
 echo "▸ Uploading ${VSIX}..."
-curl -s -X POST "${UPLOAD_URL}?name=${VSIX}" \
+UPLOAD_RESPONSE=$(curl -sS -X POST "${UPLOAD_URL}?name=${VSIX}" \
   -H "Authorization: token ${GITHUB_TOKEN}" \
   -H "Content-Type: application/octet-stream" \
-  --data-binary "@${VSIX}" | jq -r '.state' > /dev/null
+  --data-binary "@${VSIX}")
+# A release without its asset is broken for users — fail loudly instead
+# of printing "Done" with nothing attached (the old `| jq > /dev/null`
+# swallowed every upload error).
+if [ "$(echo "$UPLOAD_RESPONSE" | jq -r '.state // empty')" != "uploaded" ]; then
+  echo "ERROR: Asset upload failed. Response:"
+  echo "$UPLOAD_RESPONSE" | jq -r '.message // .'
+  exit 1
+fi
 
 RELEASE_URL=$(echo "$RELEASE_RESPONSE" | jq -r '.html_url')
 
