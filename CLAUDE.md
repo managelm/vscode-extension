@@ -18,14 +18,16 @@
 
 - `package.json` — VS Code extension manifest (chat participant, settings).
 - `src/extension.ts` — Activation entry point, registers participant.
-- `src/participant.ts` — `@managelm` Copilot Chat participant with agentic tool loop and inline tool definitions.
+- `src/participant.ts` — `@managelm` Copilot Chat participant with the agentic tool loop.
+- `src/tools.ts` — Tool schema definitions (`TOOL_DEFS`).
+- `src/executor.ts` — Tool executor: dispatches LM tool calls to the API client.
 - `src/api.ts` — ManageLM portal REST API client.
 - `icon.png` — Extension icon.
 
 ## Coding practices
 
 - Keep the code as clean as possible.
-- The participant defines tool schemas inline and calls the API directly (not via vscode.lm.tools).
+- Tool schemas live in src/tools.ts; the executor calls the API directly (not via vscode.lm.tools).
 - All API calls go through src/api.ts with proper error handling.
 - Never store API keys in code; they come from VS Code settings.
 
