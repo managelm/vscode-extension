@@ -36,10 +36,15 @@ OUTFILE="managelm-${VERSION}.vsix"
 # ── Build ─────────────────────────────────────────────────────────
 if [ "$SKIP_BUILD" = false ]; then
   echo "▸ Installing dependencies..."
-  npm ci
+  npm ci --no-audit --no-fund
+
+  # Everything here is build tooling (the .vsix ships no node_modules);
+  # warn in one line instead of npm's full report
+  npm audit >/dev/null 2>&1 \
+    || echo "  ⚠ npm audit reports vulnerabilities in the build tooling (run: npm audit)"
 
   echo "▸ Compiling TypeScript..."
-  npx tsc
+  npm run build --silent
 else
   echo "▸ Skipping build (--skip-build)"
   if [ ! -d dist ]; then
@@ -50,7 +55,7 @@ fi
 
 # ── Package as .vsix ─────────────────────────────────────────────
 echo "▸ Creating .vsix package..."
-npx vsce package --no-dependencies -o "$OUTFILE"
+npm run package --silent -- --no-dependencies -o "$OUTFILE"
 
 SIZE=$(du -h "$OUTFILE" | cut -f1)
 
