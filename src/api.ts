@@ -154,9 +154,9 @@ const id = (value: string) => encodeURIComponent(value);
 
 // ─── Agents ──────────────────────────────────────────────────────────
 
-/** List all agents visible to the API key. */
-export async function listAgents(): Promise<Agent[]> {
-  return (await api<{ agents: Agent[] }>('GET', '/agents')).agents;
+/** id, hostname, display_name and status of every visible agent: enough to resolve a name, a fraction of the full rows. */
+async function listAgentNames(): Promise<Pick<Agent, 'id' | 'hostname' | 'display_name' | 'status'>[]> {
+  return (await api<{ agents: Agent[] }>('GET', '/agents?view=basic')).agents;
 }
 
 /** Get a single agent by ID. */
@@ -170,8 +170,8 @@ export async function getAgent(agentId: string): Promise<Agent> {
  * web01 or web02, and a task would run on whichever the list returned first.
  * Near matches come back as suggestions instead.
  */
-export async function findAgentByHostname(hostname: string): Promise<{ agent: Agent } | { error: string }> {
-  const agents = await listAgents();
+export async function findAgentByHostname(hostname: string): Promise<{ agent: Pick<Agent, 'id' | 'hostname' | 'display_name' | 'status'> } | { error: string }> {
+  const agents = await listAgentNames();
   const lower = hostname.toLowerCase();
   const exact = agents.filter(a =>
     a.hostname.toLowerCase() === lower || a.display_name?.toLowerCase() === lower);

@@ -44,7 +44,7 @@ const SCAN_TOOLS: Record<string, string> = {
 };
 
 /** Resolve the `hostname` input to exactly one agent, or an error string for the LM. */
-async function resolveAgent(input: Record<string, unknown>): Promise<api.Agent | string> {
+async function resolveAgent(input: Record<string, unknown>): Promise<Pick<api.Agent, 'id' | 'hostname' | 'display_name' | 'status'> | string> {
   const hostname = str(input, 'hostname');
   if (!hostname) { return fail('hostname is required'); }
   const found = await api.findAgentByHostname(hostname);
@@ -58,9 +58,22 @@ async function resolveAgent(input: Record<string, unknown>): Promise<api.Agent |
  */
 const AGENT_INFO_FIELDS = [
   'id', 'hostname', 'display_name', 'status', 'node_type', 'os_info', 'agent_version',
-  'ip_address', 'ip_addresses', 'is_public', 'tags', 'last_seen_at', 'groups',
-  'health_metrics', 'llm_status', 'read_only_ai',
+  'ip_address', 'ip_addresses', 'is_public', 'tags', 'last_seen_at',
+  'health_metrics', 'llm_status',
 ];
+
+/**
+ * The agent info the model reads, shaped like the MCP tool's: group names, and
+ * the EFFECTIVE read-only flag. The row's own `read_only_ai` misses an agent
+ * made read-only through a group, and the model would plan changes it refuses.
+ */
+function agentInfo(row: api.Json): api.Json {
+  return {
+    ...Object.fromEntries(AGENT_INFO_FIELDS.map(f => [f, row[f]])),
+    groups: (row.groups ?? []).map((g: api.Json | string) => (typeof g === 'string' ? g : g.name)),
+    read_only_ai: row.read_only_ai_effective ?? row.read_only_ai,
+  };
+}
 
 /** Skills a task can use: a direct assignment can be switched off, and run_task refuses those. */
 const usableSkills = (skills: api.Json[]) => skills.filter(s => s.enabled !== false);
@@ -119,7 +132,7 @@ export async function executeTool(name: string, input: Record<string, unknown>):
         api.getTaskHistory({ agent_id: agent.id, limit: 5 }),
       ]);
       return out({
-        agent: Object.fromEntries(AGENT_INFO_FIELDS.map(f => [f, (full as unknown as api.Json)[f]])),
+        agent: agentInfo(full as unknown as api.Json),
         skills: usableSkills(skills).map(s => ({ slug: s.slug, name: s.name })),
         recent_tasks: tasks.map(t => ({ id: t.id, skill: t.skill_slug, status: t.status, summary: t.summary, created_at: t.created_at })),
       });
@@ -181,12 +194,17 @@ export async function executeTool(name: string, input: Record<string, unknown>):
       // Exactly one VM, by exact name or provider ID, as the MCP tool requires.
       // The search also matches regions and partial names, which only ever
       // become suggestions: never guess which machine to act on.
-      const { resources } = await api.search('cloud', { query: resource, type: 'vm' });
+      const { resources, truncated } = await api.search('cloud', { query: resource, type: 'vm' });
       const lower = resource.toLowerCase();
       const exact = resources.filter((r: api.Json) =>
         String(r.name).toLowerCase() === lower || String(r.provider_id).toLowerCase() === lower);
       const listed = (rows: api.Json[]) =>
         rows.slice(0, 10).map((r: api.Json) => ({ name: r.name, provider_id: r.provider_id, connector: r.connector_name }));
+      if (exact.length === 0 && truncated) {
+        // The search stops at 100 rows ordered by name: an exactly named VM can
+        // be past the cap, so this is not "no such VM".
+        return fail(`Too many VMs match "${resource}" to find it by name. Ask the user for its exact provider ID.`);
+      }
       if (exact.length === 0) {
         return resources.length === 0
           ? fail(`No VM matches "${resource}". Use search_cloud to find it.`)

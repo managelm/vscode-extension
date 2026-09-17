@@ -223,7 +223,7 @@ export const TOOL_DEFS: LanguageModelChatTool[] = [
   // ── Tasks ───────────────────────────────────────────────────────────
   {
     name: 'run_task',
-    description: 'Run a natural-language task on one server with a skill. Use get_agent_skills to choose the skill, or "auto" to let the agent pick. Waits up to 2 minutes; a longer task returns still_running with its task_id.',
+    description: 'Run a natural-language task on one server with a skill. Use get_agent_skills to choose the skill, or "auto" to let the agent pick. Waits up to 2 minutes; a longer task returns status "running" with its task_id.',
     inputSchema: obj({
       hostname: HOSTNAME,
       skill: { type: 'string', description: 'Skill slug (e.g. packages, services, users, containers, webserver, database) or "auto"' },

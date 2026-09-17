@@ -43,17 +43,26 @@ const MAX_ITERATIONS = 10;
  */
 interface OpenTask { task_id: string; status: string }
 
-/** Tasks a tool result left open (running or needs_input). */
-function openTaskIn(resultText: string): OpenTask | null {
+/**
+ * The task a tool result reports on, with its state: run_task / answer_task /
+ * follow_up_task answer `{task_id, status}` ("running" while in flight), and
+ * get_task_status answers `{task: {id, status}}`, where an in-flight task is
+ * "sent". Null for results about no task, or errors.
+ */
+function taskStateIn(resultText: string): OpenTask | null {
   try {
     const r = JSON.parse(resultText);
-    return r.task_id && (r.status === 'running' || r.status === 'needs_input')
-      ? { task_id: String(r.task_id), status: r.status }
-      : null;
+    if (r.error) { return null; }
+    const id = r.task_id ?? r.task?.id;
+    const status = r.task_id ? r.status : r.task?.status;
+    if (!id || !status) { return null; }
+    return { task_id: String(id), status: status === 'sent' ? 'running' : String(status) };
   } catch {
     return null;
   }
 }
+
+const isOpen = (t: OpenTask) => t.status === 'running' || t.status === 'needs_input';
 
 // ─── Participant ────────────────────────────────────────────────────
 
@@ -151,11 +160,16 @@ async function handler(
         } catch (err: unknown) {
           resultText = JSON.stringify({ error: err instanceof Error ? err.message : 'Tool call failed' });
         }
-        // Latest state wins: a task answered in this turn is no longer open.
-        const open = openTaskIn(resultText);
-        const taskId = (call.input as Record<string, unknown>).task_id;
-        if (typeof taskId === 'string') { openTasks.delete(taskId); }
-        if (open) { openTasks.set(open.task_id, open); }
+        // Latest state wins. A task leaves the list only on a result that says
+        // it is done, or once it was answered (the answer runs as a new task,
+        // reported by the same result) — never because a call about it failed.
+        const state = taskStateIn(resultText);
+        const askedAbout = (call.input as Record<string, unknown>).task_id;
+        if (state && (call.name === 'answer_task' || call.name === 'follow_up_task') && typeof askedAbout === 'string') {
+          openTasks.delete(askedAbout);
+        }
+        if (state && isOpen(state)) { openTasks.set(state.task_id, state); }
+        else if (state) { openTasks.delete(state.task_id); }
 
         messages.push(
           vscode.LanguageModelChatMessage.User([
