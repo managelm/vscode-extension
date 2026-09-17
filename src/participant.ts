@@ -10,25 +10,50 @@ import * as vscode from 'vscode';
 import { TOOL_DEFS } from './tools.js';
 import { executeTool } from './executor.js';
 
-const SYSTEM_PROMPT = `You are ManageLM, a Linux server management assistant integrated into VS Code.
+const SYSTEM_PROMPT = `You are ManageLM, a server management assistant for Linux and Windows integrated into VS Code.
 You help users manage their servers through the ManageLM platform using natural language.
 
 IMPORTANT: You MUST always use the provided tools to fulfill requests. Never say you cannot
 execute tools or suggest the user do it manually. Always call tools, never just describe.
 
-Common skills for runTask:
-base, system, packages, services, users, network, security, files,
-firewall, docker, apache, nginx, mysql, postgresql, backup, certificates, git.
-
 When the user asks about a server:
-1. If you don't know which server, call listAgents first
-2. Call the appropriate tool to get the information or run the task
-3. Present results clearly in markdown
+1. If you don't know which server, call search_agents first
+2. For questions about the fleet (what runs where, security issues, logins, certificates,
+   monitors, backups, credentials), prefer the search_* tools: they read stored data and
+   run nothing on the servers
+3. To change or inspect something live, call run_task; pick the skill with get_agent_skills,
+   or use "auto" to let the agent choose
+4. When a task returns needs_input, ask the user the question and call answer_task
+5. Disruptive hosting actions and task reverts change production systems: confirm with the user first
+6. Present results clearly in markdown
+
+Tasks and scans run on one server at a time. Approving agents, users, API keys and webhooks
+are managed in the ManageLM portal.
 
 Be concise and helpful.`;
 
 /** Maximum tool-calling iterations to prevent infinite loops. */
 const MAX_ITERATIONS = 10;
+
+/**
+ * A task the next turn may need to act on: one still running, or waiting for
+ * the user's answer. Chat history only replays the text of earlier replies, not
+ * tool results, so without this the task ID survived only if the model happened
+ * to print it — and "answer it" or "is it done?" had nothing to act on.
+ */
+interface OpenTask { task_id: string; status: string }
+
+/** Tasks a tool result left open (running or needs_input). */
+function openTaskIn(resultText: string): OpenTask | null {
+  try {
+    const r = JSON.parse(resultText);
+    return r.task_id && (r.status === 'running' || r.status === 'needs_input')
+      ? { task_id: String(r.task_id), status: r.status }
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 // ─── Participant ────────────────────────────────────────────────────
 
@@ -58,11 +83,15 @@ async function handler(
         .filter((r): r is vscode.ChatResponseMarkdownPart => r instanceof vscode.ChatResponseMarkdownPart)
         .map(r => r.value.value)
         .join('');
-      if (text) {
-        messages.push(vscode.LanguageModelChatMessage.Assistant(text));
+      const open = (turn.result.metadata?.openTasks ?? []) as OpenTask[];
+      const note = open.map(t => `[task ${t.task_id} was ${t.status === 'running' ? 'still running' : 'waiting for input'}]`).join('\n');
+      const replayed = [text, note].filter(Boolean).join('\n\n');
+      if (replayed) {
+        messages.push(vscode.LanguageModelChatMessage.Assistant(replayed));
       }
     }
   }
+  const openTasks = new Map<string, OpenTask>();
 
   messages.push(vscode.LanguageModelChatMessage.User(request.prompt));
 
@@ -122,6 +151,11 @@ async function handler(
         } catch (err: unknown) {
           resultText = JSON.stringify({ error: err instanceof Error ? err.message : 'Tool call failed' });
         }
+        // Latest state wins: a task answered in this turn is no longer open.
+        const open = openTaskIn(resultText);
+        const taskId = (call.input as Record<string, unknown>).task_id;
+        if (typeof taskId === 'string') { openTasks.delete(taskId); }
+        if (open) { openTasks.set(open.task_id, open); }
 
         messages.push(
           vscode.LanguageModelChatMessage.User([
@@ -141,5 +175,5 @@ async function handler(
     }
   }
 
-  return {};
+  return { metadata: { openTasks: [...openTasks.values()] } };
 }

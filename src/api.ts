@@ -1,8 +1,10 @@
 /**
  * ManageLM portal REST API client.
  *
- * All calls use the portal URL and API key from VS Code settings.
- * Mirrors the same endpoints used by the Slack and n8n plugins.
+ * All calls use the portal URL and API key from VS Code settings. The API key
+ * reaches the same features as the ManageLM MCP server (tasks, scans,
+ * searches, hosting actions); portal management — approving agents, users,
+ * webhooks — is done in the portal.
  */
 
 import * as vscode from 'vscode';
@@ -13,12 +15,11 @@ export interface Agent {
   id: string;
   hostname: string;
   display_name: string | null;
-  status: 'online' | 'offline' | 'pending';
+  status: 'online' | 'offline' | 'approved' | 'pending_approval' | 'revoked';
   health_metrics: Record<string, unknown> | null;
   tags: string[] | null;
-  llm_model: string | null;
   agent_version: string | null;
-  os_info: Record<string, unknown> | null;
+  os_info: string | null;
   ip_address: string | null;
   last_seen_at: string | null;
   created_at: string;
@@ -29,54 +30,42 @@ export interface Task {
   agent_id: string;
   skill_slug: string;
   operation: string;
-  status: 'sent' | 'running' | 'completed' | 'failed' | 'timeout' | 'needs_input' | 'answered';
+  status: 'sent' | 'completed' | 'failed' | 'timeout' | 'needs_input' | 'answered';
   error_message: string | null;
   summary: string | null;
   question: string | null;
   mutating: boolean;
   created_at: string;
   completed_at: string | null;
-  response_payload: string | null;
 }
 
-export interface TaskSubmitResult {
-  task: Task;
-  result: unknown;
-}
+/** A task that finished within the wait, or one still running after it. */
+export type TaskOutcome =
+  | { task: Task; result: unknown }
+  | { task_id: string; status: 'sent'; still_running: true };
 
-export interface Skill {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  version: string;
-}
-
-export interface SecurityFinding {
-  id: string;
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'pass';
-  category: string;
-  title: string;
-  explanation: string;
-  remediation: string;
-}
-
-export interface InventoryItem {
-  id: string;
-  category: string;
-  name: string;
-  status: 'running' | 'stopped' | 'installed' | 'info';
-  version: string;
-  details: string;
-}
+export type Json = Record<string, any>;
 
 // ─── HTTP helpers ────────────────────────────────────────────────────
 
 /** Default timeout for API requests (30s). */
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-/** Extended timeout for synchronous task execution (wait=true). */
-const TASK_TIMEOUT_MS = 120_000;
+/**
+ * How long the portal waits for a task before answering "still running"
+ * (wait_seconds), and a client timeout that covers it. A longer task is not
+ * lost: the reply carries its ID for get_task_status.
+ */
+const TASK_WAIT_SECONDS = 120;
+const TASK_TIMEOUT_MS = (TASK_WAIT_SECONDS + 15) * 1000;
+
+/**
+ * Calls the portal answers only once the agent or hypervisor has: a revert
+ * and a Proxmox action wait up to 60 s, a full diff 30 s. A shorter client
+ * timeout reports a failure for an action that went through, and the model
+ * retries it (a second reboot, a duplicate snapshot).
+ */
+const SLOW_CALL_TIMEOUT_MS = 90_000;
 
 class ApiError extends Error {
   constructor(public statusCode: number, message: string) {
@@ -92,7 +81,7 @@ function getConfig(): { portalUrl: string; apiKey: string } {
   return { portalUrl, apiKey };
 }
 
-async function api<T = unknown>(
+async function api<T = Json>(
   method: string,
   endpoint: string,
   body?: unknown,
@@ -151,216 +140,171 @@ async function api<T = unknown>(
   return json as T;
 }
 
+/** Build a query string from tool input, skipping empty values. */
+export function query(params: Record<string, unknown>): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== '') { qs.set(k, String(v)); }
+  }
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+}
+
+const id = (value: string) => encodeURIComponent(value);
+
 // ─── Agents ──────────────────────────────────────────────────────────
 
 /** List all agents visible to the API key. */
 export async function listAgents(): Promise<Agent[]> {
-  const data = await api<{ agents: Agent[] }>('GET', '/agents');
-  return data.agents;
+  return (await api<{ agents: Agent[] }>('GET', '/agents')).agents;
 }
 
 /** Get a single agent by ID. */
 export async function getAgent(agentId: string): Promise<Agent> {
-  const data = await api<{ agent: Agent }>('GET', `/agents/${encodeURIComponent(agentId)}`);
-  return data.agent;
+  return (await api<{ agent: Agent }>('GET', `/agents/${id(agentId)}`)).agent;
 }
 
-/** Find an agent by hostname or display name (partial, case-insensitive). */
-export async function findAgentByHostname(hostname: string): Promise<Agent | null> {
+/**
+ * Resolve a hostname or display name to exactly one agent (case-insensitive).
+ * Like the MCP server, a partial name is never taken as a match: "web" could be
+ * web01 or web02, and a task would run on whichever the list returned first.
+ * Near matches come back as suggestions instead.
+ */
+export async function findAgentByHostname(hostname: string): Promise<{ agent: Agent } | { error: string }> {
   const agents = await listAgents();
   const lower = hostname.toLowerCase();
-  // Exact match first, then partial
-  return (
-    agents.find(a =>
-      a.hostname.toLowerCase() === lower ||
-      (a.display_name && a.display_name.toLowerCase() === lower),
-    ) ||
-    agents.find(a =>
-      a.hostname.toLowerCase().includes(lower) ||
-      (a.display_name && a.display_name.toLowerCase().includes(lower)),
-    ) ||
-    null
-  );
+  const exact = agents.filter(a =>
+    a.hostname.toLowerCase() === lower || a.display_name?.toLowerCase() === lower);
+  if (exact.length === 1) { return { agent: exact[0] }; }
+  if (exact.length > 1) {
+    return { error: `"${hostname}" names ${exact.length} servers (${exact.map(a => a.hostname).join(', ')}). Use the full hostname.` };
+  }
+  const near = agents.filter(a =>
+    a.hostname.toLowerCase().includes(lower) || a.display_name?.toLowerCase().includes(lower));
+  if (near.length > 0) {
+    return { error: `No server is named "${hostname}". Did you mean: ${near.slice(0, 5).map(a => a.hostname).join(', ')}?` };
+  }
+  return { error: `No server is named "${hostname}". Use search_agents to list servers.` };
 }
 
-/** Approve a pending agent. */
-export async function approveAgent(agentId: string): Promise<void> {
-  await api('POST', `/agents/${encodeURIComponent(agentId)}/approve`);
+/** Skills assigned to an agent. */
+export async function getAgentSkills(agentId: string): Promise<Json[]> {
+  return (await api<{ skills: Json[] }>('GET', `/agents/${id(agentId)}/skills`)).skills;
 }
 
-/** List skills assigned to an agent. */
-export async function getAgentSkills(agentId: string): Promise<Skill[]> {
-  const data = await api<{ skills: Skill[] }>('GET', `/agents/${encodeURIComponent(agentId)}/skills`);
-  return data.skills;
+// ─── Skills & account ────────────────────────────────────────────────
+
+export async function getSkillCatalog(): Promise<Json[]> {
+  return (await api<{ catalog: Json[] }>('GET', '/skills/catalog')).catalog;
+}
+
+export async function getAccount(): Promise<Json> {
+  return api('GET', '/account');
+}
+
+export async function listGroups(): Promise<Json[]> {
+  return (await api<{ groups: Json[] }>('GET', '/groups')).groups;
+}
+
+export async function listSites(): Promise<Json[]> {
+  return (await api<{ sites: Json[] }>('GET', '/sites')).sites;
 }
 
 // ─── Tasks ───────────────────────────────────────────────────────────
 
-/** Submit a task and wait for the result (synchronous mode, 120s timeout). */
-export async function runTask(agentId: string, skillSlug: string, instruction: string): Promise<TaskSubmitResult> {
-  return api<TaskSubmitResult>('POST', '/tasks?wait=true', {
+/** Submit a task and wait for the result, up to TASK_WAIT_SECONDS. */
+export async function runTask(agentId: string, skillSlug: string, instruction: string): Promise<TaskOutcome> {
+  return api<TaskOutcome>('POST', `/tasks?wait_seconds=${TASK_WAIT_SECONDS}`, {
     agent_id: agentId,
     skill_slug: skillSlug,
     instruction,
   }, TASK_TIMEOUT_MS);
 }
 
-/** Get task status by ID. */
-export async function getTask(taskId: string): Promise<Task> {
-  const data = await api<{ task: Task }>('GET', `/tasks/${encodeURIComponent(taskId)}`);
-  return data.task;
+/** Answer a question from an interactive task (needs_input) and wait for the resumed task. */
+export async function answerTask(taskId: string, answer: string): Promise<TaskOutcome> {
+  return api<TaskOutcome>('POST', `/tasks/${id(taskId)}/answer?wait_seconds=${TASK_WAIT_SECONDS}`, { answer }, TASK_TIMEOUT_MS);
 }
 
-/** Answer a question from an interactive task (needs_input status). */
-export async function answerTask(taskId: string, answer: string): Promise<TaskSubmitResult> {
-  return api<TaskSubmitResult>('POST', `/tasks/${encodeURIComponent(taskId)}/answer?wait=true`, {
-    answer,
-  }, TASK_TIMEOUT_MS);
+/** Continue a conversation on a completed task. */
+export async function followUpTask(taskId: string, instruction: string): Promise<TaskOutcome> {
+  return api<TaskOutcome>('POST', `/tasks/${id(taskId)}/follow-up?wait_seconds=${TASK_WAIT_SECONDS}`, { instruction }, TASK_TIMEOUT_MS);
 }
 
-/** Get recent tasks for an agent. */
-export async function getTaskHistory(agentId: string, limit = 20): Promise<Task[]> {
-  const data = await api<{ tasks: Task[] }>(
-    'GET',
-    `/tasks?agent_id=${encodeURIComponent(agentId)}&limit=${limit}`,
-  );
-  return data.tasks;
+export async function getTask(taskId: string): Promise<Json> {
+  return (await api<{ task: Json }>('GET', `/tasks/${id(taskId)}`)).task;
 }
 
-// ─── Skills ──────────────────────────────────────────────────────────
-
-/** List all skills in the account. */
-export async function listSkills(): Promise<Skill[]> {
-  const data = await api<{ skills: Skill[] }>('GET', '/skills');
-  return data.skills;
+export async function getTaskHistory(params: Record<string, unknown>): Promise<Json[]> {
+  return (await api<{ tasks: Json[] }>('GET', `/tasks${query(params)}`)).tasks;
 }
 
-// ─── Security ────────────────────────────────────────────────────────
-
-interface AuditResponse {
-  audit: {
-    status: string;
-    report: SecurityFinding[];
-    started_at: string;
-    completed_at: string | null;
-  } | null;
+export async function getTaskChanges(taskId: string, fullDiff: boolean): Promise<Json> {
+  const endpoint = `/tasks/${id(taskId)}/changes${fullDiff ? '?full_diff=true' : ''}`;
+  return (await api<{ changeset: Json }>('GET', endpoint, undefined, fullDiff ? SLOW_CALL_TIMEOUT_MS : DEFAULT_TIMEOUT_MS)).changeset;
 }
 
-/** Get security audit findings for an agent. */
-export async function getSecurity(agentId: string): Promise<{ status: string; findings: SecurityFinding[] } | null> {
-  const data = await api<AuditResponse>('GET', `/security/${encodeURIComponent(agentId)}`);
-  if (!data.audit) {
-    return null;
+export async function revertTask(taskId: string): Promise<Json> {
+  return api('POST', `/tasks/${id(taskId)}/revert`, undefined, SLOW_CALL_TIMEOUT_MS);
+}
+
+// ─── Scans ───────────────────────────────────────────────────────────
+
+/** Portal route and reply key of each scan (POST starts it, GET reads the latest). */
+export const SCANS: Record<string, { route: string; key: string }> = {
+  security: { route: 'security', key: 'audit' },
+  inventory: { route: 'inventory', key: 'inventory' },
+  access: { route: 'sshkeys', key: 'scan' },
+  certificates: { route: 'certscan', key: 'scan' },
+  activity: { route: 'activity', key: 'audit' },
+};
+
+/** Latest scan of an agent, or null when none has run. */
+export async function getScan(type: string, agentId: string): Promise<Json | null> {
+  const scan = SCANS[type];
+  const data = await api<Json>('GET', `/${scan.route}/${id(agentId)}`);
+  return data[scan.key] ?? null;
+}
+
+/**
+ * Start a scan and wait for it to finish, like the MCP run_* tools. Polls the
+ * result every few seconds; a scan still running after `timeoutMs` is returned
+ * as is (status "running") so the caller can read it later.
+ */
+export async function runScanAndWait(type: string, agentId: string, timeoutMs = 180_000): Promise<Json | null> {
+  const scan = SCANS[type];
+  await api('POST', `/${scan.route}/${id(agentId)}`);
+  const deadline = Date.now() + timeoutMs;
+  let latest: Json | null = null;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 3000));
+    latest = await getScan(type, agentId);
+    if (latest && latest.status !== 'running' && latest.status !== 'pending') { break; }
   }
-  return { status: data.audit.status, findings: data.audit.report };
-}
-
-/** Start a security audit on an agent. */
-export async function runSecurityAudit(agentId: string): Promise<void> {
-  await api('POST', `/security/${encodeURIComponent(agentId)}`);
-}
-
-// ─── Inventory ───────────────────────────────────────────────────────
-
-interface InventoryResponse {
-  inventory: {
-    id: string;
-    status: string;
-    report: InventoryItem[];
-    error_message: string | null;
-    started_at: string;
-    completed_at: string | null;
-  } | null;
-}
-
-/** Get inventory items for an agent. */
-export async function getInventory(agentId: string): Promise<{ status: string; items: InventoryItem[] } | null> {
-  const data = await api<InventoryResponse>('GET', `/inventory/${encodeURIComponent(agentId)}`);
-  if (!data.inventory) {
-    return null;
-  }
-  return { status: data.inventory.status, items: data.inventory.report };
-}
-
-/** Start an inventory scan on an agent. */
-export async function runInventoryScan(agentId: string): Promise<void> {
-  await api('POST', `/inventory/${encodeURIComponent(agentId)}`);
+  return latest;
 }
 
 // ─── Search ──────────────────────────────────────────────────────────
 
-/** Search agents by health, OS, status, group, or free text. */
-export async function searchAgents(params: Record<string, string | number>): Promise<any[]> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) { if (v !== undefined && v !== '') qs.set(k, String(v)); }
-  const data = await api<{ agents: any[] }>('GET', `/search/agents?${qs}`);
-  return data.agents;
+/** GET /api/search/<kind> with the given filters. */
+export async function search(kind: string, params: Record<string, unknown>): Promise<Json> {
+  return api('GET', `/search/${kind}${query(params)}`);
 }
 
-/** Search inventory items across all agents. */
-export async function searchInventory(params: Record<string, string>): Promise<any[]> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, v); }
-  const data = await api<{ items: any[] }>('GET', `/search/inventory?${qs}`);
-  return data.items;
+// ─── Hosting ─────────────────────────────────────────────────────────
+
+/** Actions a hosting connector permits (id, label, risk, params). */
+export async function getConnectorActions(connectorId: string): Promise<Json> {
+  return api('GET', `/connectors/${id(connectorId)}/actions`);
 }
 
-/** Search security findings across all agents. */
-export async function searchSecurity(params: Record<string, string>): Promise<any[]> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, v); }
-  const data = await api<{ findings: any[] }>('GET', `/search/security?${qs}`);
-  return data.findings;
-}
-
-/** Search SSH keys across infrastructure. */
-export async function searchSshKeys(params: Record<string, string>): Promise<Record<string, unknown>> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, v); }
-  return api('GET', `/search/ssh-keys?${qs}`);
-}
-
-/** Search sudo rules across infrastructure. */
-export async function searchSudoRules(params: Record<string, string>): Promise<any[]> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, v); }
-  const data = await api<{ rules: any[] }>('GET', `/search/sudo-rules?${qs}`);
-  return data.rules;
-}
-
-// ─── Task Changes ────────────────────────────────────────────────────
-
-/** Get file changes made by a task. */
-export async function getTaskChanges(taskId: string, fullDiff = false): Promise<Record<string, unknown>> {
-  const qs = fullDiff ? '?full_diff=true' : '';
-  const data = await api<{ changeset: Record<string, unknown> }>('GET', `/tasks/${encodeURIComponent(taskId)}/changes${qs}`);
-  return data.changeset;
-}
-
-/** Revert file changes from a task. */
-export async function revertTask(taskId: string): Promise<Record<string, unknown>> {
-  return api('POST', `/tasks/${encodeURIComponent(taskId)}/revert`);
+export async function runConnectorAction(connectorId: string, resourceId: string, action: string, params: Json | undefined): Promise<Json> {
+  return api('POST', `/connectors/${id(connectorId)}/actions`, { resource_id: resourceId, action, params }, SLOW_CALL_TIMEOUT_MS);
 }
 
 // ─── Email ───────────────────────────────────────────────────────────
 
 /** Send an email to the authenticated user. */
-export async function sendEmail(subject: string, body: string): Promise<Record<string, unknown>> {
+export async function sendEmail(subject: string, body: string): Promise<Json> {
   return api('POST', '/email', { subject, body });
-}
-
-// ─── Follow-up Tasks ────────────────────────────────────────────────
-
-/** Continue a conversation on a completed task. */
-export async function followUpTask(taskId: string, instruction: string): Promise<TaskSubmitResult> {
-  return api<TaskSubmitResult>('POST', `/tasks/${encodeURIComponent(taskId)}/follow-up?wait=true`, {
-    instruction,
-  }, TASK_TIMEOUT_MS);
-}
-
-// ─── Account ─────────────────────────────────────────────────────────
-
-/** Get account info. */
-export async function getAccountInfo(): Promise<Record<string, unknown>> {
-  return api('GET', '/account');
 }

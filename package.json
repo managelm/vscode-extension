@@ -1,10 +1,10 @@
 {
   "name": "managelm",
   "displayName": "ManageLM",
-  "description": "Manage Linux servers from VS Code Copilot Chat",
+  "description": "Manage Linux and Windows servers from VS Code Copilot Chat",
   "version": "1.0.1",
   "publisher": "managelm",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/managelm/vscode-extension"
@@ -36,7 +36,7 @@
         "id": "managelm.chat",
         "fullName": "ManageLM",
         "name": "managelm",
-        "description": "Manage your Linux servers through natural language",
+        "description": "Manage your servers through natural language",
         "isSticky": true
       }
     ],

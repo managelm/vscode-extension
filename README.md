@@ -23,17 +23,15 @@
 
 ---
 
-Type `@managelm` in Copilot Chat to check system status, manage packages, configure services, run security audits, and more — across one server or an entire fleet. The extension connects Copilot to your infrastructure through the ManageLM portal and lightweight agents on your servers.
+Type `@managelm` in Copilot Chat to check system status, manage packages, configure services, run security audits, search your fleet, and more. The extension connects Copilot to your infrastructure through the ManageLM portal and lightweight agents on your servers, with the same tools ManageLM gives Claude through MCP.
 
 ## Features
 
 - **Natural language** — describe tasks in plain English; the extension picks the right tool
-- **13 built-in tools** — list servers, run tasks, check status, security audits, inventory, and more
-- **Multi-server targeting** — target a hostname, group, or all agents
+- **34 built-in tools** — modelled on the ManageLM MCP tools: tasks, scans, 13 fleet searches, hosting connectors and actions, task history and revert
 - **Interactive tasks** — when the agent needs input, Copilot asks you and answers automatically
-- **Security audits** — start audits and view findings with severity and remediation
-- **Inventory scans** — discover packages, services, containers
-- **Cross-infrastructure search** — find agents by health/OS, search inventory, security, SSH keys
+- **Scans that wait** — security, inventory, access, certificate and activity scans return their result
+- **Cross-infrastructure search** — agents, inventory, security issues, activity, SSH keys, sudo, certificates, monitors, backups, credentials, keystore, cloud resources
 - **Copilot native** — works inside Copilot Chat, no separate UI
 
 ## Quick Start
@@ -50,9 +48,9 @@ Or download the `.vsix` from [GitHub Releases](https://github.com/managelm/vscod
 
 ### 2. Configure
 
-1. Open **Settings** (`Cmd+,` / `Ctrl+,`) and search for **ManageLM**
-2. Set your **API Key** (from Portal > Settings > MCP & API)
-3. (Optional) Set your **Portal URL** if self-hosting
+1. In the ManageLM portal, go to **Settings > MCP & API > API Keys** and create a key. It acts as you, limited to the authorizations you tick: add **Reports** for scans, **Hosting** for VM actions, **Credentials** / **Keystore** to search those
+2. Open VS Code **Settings** (`Cmd+,` / `Ctrl+,`) and search for **ManageLM**
+3. Set your **API Key**, and your **Portal URL** if self-hosting
 
 ### 3. Use it
 
@@ -63,42 +61,49 @@ Open Copilot Chat and type `@managelm` followed by your request:
 
 @managelm check disk usage on web-prod-01
 
-@managelm install nginx on all servers in the staging group
+@managelm install nginx on web-staging-02
 
 @managelm run a security audit on db-primary
 
 @managelm which servers have CPU above 80%?
 
-@managelm approve the new server that just enrolled
+@managelm who logged in to db-primary yesterday?
+
+@managelm which certificates expire this month?
 ```
 
 ## Architecture
 
 ```
 VS Code Copilot Chat ── REST API ──> ManageLM Portal ── WebSocket ──> Agent on Server
-  @managelm                          (cloud control      (outbound      (local LLM,
-                                      plane)              only)          skill exec)
+  @managelm                          (cloud control      (outbound      (skill exec)
+                                      plane)              only)
 ```
 
-Agents use a local LLM — your data never leaves your infrastructure. No SSH, no inbound ports.
+No SSH, no inbound ports on your servers.
 
 ## Available Tools
 
 | Tool | Description |
 |------|-------------|
-| `listAgents` | All servers with status, health, OS, IPs |
-| `agentInfo` | Detailed info for a single server |
-| `runTask` | Execute a skill-based task on a server |
-| `getTaskStatus` | Check task status and result |
-| `getTaskHistory` | Recent tasks for a server |
-| `approveAgent` | Approve a pending enrollment |
-| `listSkills` | All skills in your account |
-| `agentSkills` | Skills assigned to a server |
-| `getSecurity` | Security audit findings |
-| `getInventory` | System inventory (packages, services, containers) |
-| `runSecurityAudit` | Start a security audit |
-| `runInventoryScan` | Start an inventory scan |
-| `accountInfo` | Account plan, members, usage |
+| `search_agents` | Servers by status, group, site, health or text |
+| `get_agent_info` | One server: OS, health, skills, recent tasks |
+| `get_agent_skills` / `list_available_skills` | Skills on a server / catalog skills not yet imported |
+| `get_account_info` / `list_team_members` | Account, groups and sites / team members |
+| `search_inventory` / `search_security` / `search_activity` | Inventory, security issues (audits, pentests, threats), logins and sudo |
+| `search_ssh_keys` / `search_sudo_rules` | Access across the fleet, mapped to your team |
+| `search_certificates` / `search_pki` | Certificates found on servers / certificates ManageLM issues |
+| `search_monitors` / `search_backups` | Monitors with current status / backups and their last run |
+| `search_credentials` / `search_keystore` | Rotating credentials / keystore keys and usage (metadata only) |
+| `list_connectors` / `search_cloud` / `get_cloud_info` | Hosting connectors and the resources they discover |
+| `cloud_action` | Start, stop, reboot or snapshot a VM (disruptive actions need your confirmation) |
+| `run_security_audit` / `run_inventory_scan` / `run_access_scan` / `run_certificate_scan` / `run_activity_scan` | Run a scan on one server and wait for the result |
+| `run_task` | Run a skill-based task on one server (`auto` lets the agent pick the skill) |
+| `answer_task` / `follow_up_task` | Answer a task waiting for input / continue a conversation |
+| `get_task_status` / `get_task_history` / `get_task_changes` / `revert_task` | Task results, history, file changes and revert |
+| `send_email` | Email yourself a report |
+
+Tasks and scans run on one server at a time. Approving agents, users, API keys and webhooks are managed in the portal.
 
 ## Requirements
 
