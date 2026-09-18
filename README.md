@@ -23,7 +23,7 @@
 
 ---
 
-Type `@managelm` in Copilot Chat to check system status, manage packages, configure services, run security audits, search your fleet, and more. The extension connects Copilot to your infrastructure through the ManageLM portal and lightweight agents on your servers, with the same tools ManageLM gives Claude through MCP.
+Type `@managelm` in Copilot Chat to check system status, manage packages, configure services, run security audits, search your fleet, and more. The extension connects Copilot to your infrastructure through the ManageLM portal and lightweight agents on your servers, with nearly all the tools ManageLM gives Claude through MCP.
 
 ## Features
 
@@ -48,7 +48,7 @@ Or download the `.vsix` from [GitHub Releases](https://github.com/managelm/vscod
 
 ### 2. Configure
 
-1. In the ManageLM portal, go to **Settings > MCP & API > API Keys** and create a key. It acts as you, limited to the authorizations you tick: add **Reports** for scans, **Hosting** for VM actions, **Credentials** / **Keystore** to search those
+1. In the ManageLM portal, go to **Settings > MCP & API > API Keys** and create a key. It acts as you, limited to the authorizations you tick: add **Assets** for scans, **Hosting** for VM actions, **Credentials** / **Keystore** to search those
 2. Open VS Code **Settings** (`Cmd+,` / `Ctrl+,`) and search for **ManageLM**
 3. Set your **API Key**, and your **Portal URL** if self-hosting
 
@@ -103,7 +103,7 @@ No SSH, no inbound ports on your servers.
 | `get_task_status` / `get_task_history` / `get_task_changes` / `revert_task` | Task results, history, file changes and revert |
 | `send_email` | Email yourself a report |
 
-Tasks and scans run on one server at a time. Approving agents, users, API keys and webhooks are managed in the portal.
+Tasks and scans run on one server at a time. Scheduled tasks are not covered: MCP's `search_schedules` has no counterpart here. On an account set to No LLM, `run_task`, `answer_task`, `follow_up_task` and `get_agent_skills` are unavailable; searches and scans still work. Approving agents, users, API keys and webhooks are managed in the portal.
 
 ## Requirements
 
