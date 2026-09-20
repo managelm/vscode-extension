@@ -273,14 +273,4 @@ export const TOOL_DEFS: LanguageModelChatTool[] = [
     description: 'Revert the file changes of a task (agent online, changes under 30 days old). Call get_task_changes first.',
     inputSchema: obj({ task_id: { type: 'string', description: 'Task ID to revert' } }, ['task_id']),
   },
-
-  // ── Utility ─────────────────────────────────────────────────────────
-  {
-    name: 'send_email',
-    description: 'Send yourself an email with a report or summary (plain text).',
-    inputSchema: obj({
-      subject: { type: 'string', description: 'Email subject' },
-      body: { type: 'string', description: 'Plain-text body; blank lines separate paragraphs' },
-    }, ['subject', 'body']),
-  },
 ];

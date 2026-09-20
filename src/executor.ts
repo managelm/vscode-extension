@@ -273,14 +273,6 @@ export async function executeTool(name: string, input: Record<string, unknown>):
       return out(await api.revertTask(taskId));
     }
 
-    // ── Utility ─────────────────────────────────────────────────────
-    case 'send_email': {
-      const subject = str(input, 'subject');
-      const body = str(input, 'body');
-      if (!subject || !body) { return fail('subject and body are required'); }
-      return out(await api.sendEmail(subject, body));
-    }
-
     default:
       return fail(`Unknown tool: ${name}`);
   }

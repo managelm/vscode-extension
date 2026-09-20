@@ -301,10 +301,3 @@ export async function getConnectorActions(connectorId: string): Promise<Json> {
 export async function runConnectorAction(connectorId: string, resourceId: string, action: string, params: Json | undefined): Promise<Json> {
   return api('POST', `/connectors/${id(connectorId)}/actions`, { resource_id: resourceId, action, params }, SLOW_CALL_TIMEOUT_MS);
 }
-
-// ─── Email ───────────────────────────────────────────────────────────
-
-/** Send an email to the authenticated user. */
-export async function sendEmail(subject: string, body: string): Promise<Json> {
-  return api('POST', '/email', { subject, body });
-}

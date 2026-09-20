@@ -101,7 +101,6 @@ No SSH, no inbound ports on your servers.
 | `run_task` | Run a skill-based task on one server (`auto` lets the agent pick the skill) |
 | `answer_task` / `follow_up_task` | Answer a task waiting for input / continue a conversation |
 | `get_task_status` / `get_task_history` / `get_task_changes` / `revert_task` | Task results, history, file changes and revert |
-| `send_email` | Email yourself a report |
 
 Tasks and scans run on one server at a time. Scheduled tasks are not covered: MCP's `search_schedules` has no counterpart here. On an account set to No LLM, `run_task`, `answer_task`, `follow_up_task` and `get_agent_skills` are unavailable; searches and scans still work. Approving agents, users, API keys and webhooks are managed in the portal.
 
