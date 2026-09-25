@@ -152,7 +152,7 @@ export const TOOL_DEFS: LanguageModelChatTool[] = [
   },
   {
     name: 'search_keystore',
-    description: 'KSM Keystore: keys, the applications using them, and per-day usage or refusals. Metadata only. Requires the Keystore authorization.',
+    description: 'KSM Keystore: keys, the applications using them, and their usage or refusals. Metadata only. Requires the Keystore authorization.',
     inputSchema: obj({
       view: { type: 'string', description: 'keys (default), clients, denied, activity' },
       query: { type: 'string', description: 'Key, handle, application, caller or refusal reason' },
