@@ -90,7 +90,7 @@ No SSH, no inbound ports on your servers.
 | `get_agent_info` | One server: OS, health, skills, recent tasks |
 | `get_agent_skills` / `list_available_skills` | Skills on a server / catalog skills not yet imported |
 | `get_account_info` / `list_team_members` | Account, groups and sites / team members |
-| `search_inventory` / `search_security` / `search_activity` | Inventory, security issues (audits, pentests, threats), logins and sudo |
+| `search_inventory` / `search_security` / `search_activity` | Inventory, security issues (audits, vulnerabilities, pentests, threats, exposures), logins and sudo |
 | `search_ssh_keys` / `search_sudo_rules` | Access across the fleet, mapped to your team |
 | `search_certificates` / `search_pki` | Certificates found on servers / certificates ManageLM issues |
 | `search_monitors` / `search_backups` | Monitors with current status / backups and their last run |

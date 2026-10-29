@@ -80,12 +80,13 @@ export const TOOL_DEFS: LanguageModelChatTool[] = [
   },
   {
     name: 'search_security',
-    description: 'Security issues across servers: audit findings, pentest findings and threat alerts, each tagged with its source.',
+    description: 'Security issues across servers: audit and vulnerability findings, pentest findings, threat alerts (service, session, virus, exposure) and exposure checks, each tagged with its source.',
     inputSchema: obj({
       query: { type: 'string', description: 'Search titles and explanations' },
       severity: { type: 'string', description: 'Minimum severity: critical, high, medium, low' },
-      category: { type: 'string', description: 'ssh, firewall, users, permissions, updates, kernel, tls, docker, ... ("Threat Detection" for threats)' },
-      source: { type: 'string', description: 'audit, pentest, threat, or all' },
+      category: { type: 'string', description: 'ssh, firewall, users, permissions, updates, kernel, tls, docker, vulnerability, ... ("Threat Detection" for threats, "Exposure" for exposure checks)' },
+      source: { type: 'string', description: 'audit, pentest, threat, exposure, or all' },
+      kind: { type: 'string', description: 'Threat alerts only: service, session, virus, exposure (comma-separated for several)' },
       unresolved: { type: 'boolean', description: 'Only open items (default true)' },
       group: GROUP, site: SITE, since: SINCE, until: UNTIL,
     }),
