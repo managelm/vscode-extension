@@ -175,7 +175,7 @@ export async function executeTool(name: string, input: Record<string, unknown>):
     case 'get_cloud_info': {
       const resource = str(input, 'resource');
       if (!resource) { return fail('resource is required'); }
-      const { resources } = await api.search('cloud', { query: resource });
+      const { rows: resources = [] } = await api.search('cloud', { query: resource });
       if (!resources.length) { return fail(`No hosting resource matches "${resource}". Use search_cloud to browse.`); }
       const matches: api.Json[] = resources.slice(0, 5);
       const actionsByConnector = new Map<string, api.Json>();
@@ -194,14 +194,14 @@ export async function executeTool(name: string, input: Record<string, unknown>):
       // Exactly one VM, by exact name or provider ID, as the MCP tool requires.
       // The search also matches regions and partial names, which only ever
       // become suggestions: never guess which machine to act on.
-      const { resources, truncated } = await api.search('cloud', { query: resource, type: 'vm' });
+      const { rows: resources = [], truncated } = await api.search('cloud', { query: resource, type: 'vm' });
       const lower = resource.toLowerCase();
       const exact = resources.filter((r: api.Json) =>
         String(r.name).toLowerCase() === lower || String(r.provider_id).toLowerCase() === lower);
       const listed = (rows: api.Json[]) =>
         rows.slice(0, 10).map((r: api.Json) => ({ name: r.name, provider_id: r.provider_id, connector: r.connector_name }));
       if (exact.length === 0 && truncated) {
-        // The search stops at 100 rows ordered by name: an exactly named VM can
+        // The search stops at 500 rows ordered by name: an exactly named VM can
         // be past the cap, so this is not "no such VM".
         return fail(`Too many VMs match "${resource}" to find it by name. Ask the user for its exact provider ID.`);
       }
