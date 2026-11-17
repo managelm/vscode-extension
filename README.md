@@ -122,8 +122,8 @@ npm run package    # create .vsix
 
 ## Other Integrations
 
-- [Claude Code Extension](https://github.com/managelm/claude-extension) — MCP integration for Claude
-- [ChatGPT Plugin](https://github.com/managelm/openai-gpt) — manage servers from ChatGPT
+- [Claude Plugin](https://github.com/managelm/claude-plugin) — manage servers from claude.ai, Cowork and Claude Code
+- [ChatGPT Plugin](https://github.com/managelm/chatgpt-plugin) — manage servers from ChatGPT
 - [n8n Plugin](https://github.com/managelm/n8n-plugin) — infrastructure automation workflows
 - [Slack Plugin](https://github.com/managelm/slack-plugin) — notifications and commands in Slack
 - [OpenClaw Plugin](https://github.com/managelm/openclaw-plugin) — OpenClaw integration
